@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Standalone extension repos ship no committed lockfile (see the ci.yml install step)
+pnpm-lock.yaml
+
+# Build output (tsconfig outDir)
+dist/
+*.tsbuildinfo
+
+# Test output
+coverage/
+
+# npm pack output
+*.tgz
+
+# Env files & secrets
+.env
+.env.*
+
+# Logs
+*.log
+
+# OS / editor / local tooling
+.DS_Store
+.vscode/
+.idea/
+.claude/
