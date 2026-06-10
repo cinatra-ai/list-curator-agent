@@ -26,3 +26,6 @@ coverage/
 .vscode/
 .idea/
 .claude/
+
+# Internal planning notes (local-only by owner policy)
+.planning/
