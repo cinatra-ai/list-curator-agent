@@ -1,0 +1,8 @@
+# Source-archive hygiene (cinatra-ai/cinatra-engineering#56): export-ignore trims
+# CI/internal noise from `git archive` output (the GitHub Release "Source code"
+# archives). The npm tarball is governed separately by the package.json "files"
+# allowlist — .gitattributes has no effect on npm pack.
+.github/** export-ignore
+.gitattributes export-ignore
+.gitignore export-ignore
+extension-kind-gate.mjs export-ignore
