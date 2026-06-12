@@ -11,6 +11,18 @@
   "cinatra": {
     "apiVersion": "cinatra.ai/v1",
     "kind": "agent",
-    "dependencies": []
+    "dependencies": [],
+    "fieldRenderers": [
+      {
+        "id": "@cinatra-ai/list-curator-agent:scrape-schema-review",
+        "kind": "scrape-schema-review",
+        "priority": 90
+      },
+      {
+        "id": "@cinatra-ai/list-curator-agent:final-list-review",
+        "kind": "final-list-review",
+        "priority": 90
+      }
+    ]
   }
 }
