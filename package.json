@@ -1,6 +1,6 @@
 {
   "name": "@cinatra-ai/list-curator-agent",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "Apache-2.0",
   "description": "Orchestrator agent that curates a CRM list of accounts OR contacts from a natural-language intent. Invokes @cinatra-ai/web-scrape-agent → @cinatra-ai/company-discovery-agent → @cinatra-ai/contact-discovery-agent via agent_run, pauses at 2 HITL gates (scrape-schema-review + final-list-review), and materializes the resulting CRM list via crm_list_create + per-member crm_list_member_add after operator approval. The mixed member type is not supported — CRM lists are per-object-type.",
   "type": "module",
