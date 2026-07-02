@@ -8,7 +8,6 @@
     "cinatra": {
       "type": "flow",
       "packageName": "@cinatra-ai/list-curator-agent",
-      "packageVersion": "0.1.0",
       "hitlScreens": [
         "@cinatra-ai/list-curator-agent:scrape-schema-review",
         "@cinatra-ai/list-curator-agent:final-list-review"
