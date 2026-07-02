@@ -23,6 +23,7 @@
         "kind": "final-list-review",
         "priority": 90
       }
-    ]
+    ],
+    "consumes": []
   }
 }
