@@ -11,6 +11,7 @@
   "cinatra": {
     "apiVersion": "cinatra.ai/v1",
     "kind": "agent",
+    "displayName": "List Curator Agent",
     "dependencies": [],
     "fieldRenderers": [
       {
@@ -24,6 +25,15 @@
         "priority": 90
       }
     ],
-    "consumes": []
+    "consumes": [],
+    "packageType": "agent",
+    "manifestVersion": 1,
+    "sourceTemplateId": "list-curator-agent-flow",
+    "sourceVersionId": "5cd6c578-f94c-42e8-80d1-e6e87a6b1ae1",
+    "sourceVersionNumber": 1,
+    "riskLevel": "low",
+    "hasApprovalGates": false,
+    "toolAccess": [],
+    "ownerOrgId": null
   }
 }
