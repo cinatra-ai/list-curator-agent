@@ -12,7 +12,38 @@
     "apiVersion": "cinatra.ai/v1",
     "kind": "agent",
     "displayName": "List Curator Agent",
-    "dependencies": [],
+    "dependencies": [
+      {
+        "packageName": "@cinatra-ai/web-scrape-agent",
+        "edgeType": "runtime",
+        "versionConstraint": {
+          "kind": "semver-range",
+          "range": "*"
+        },
+        "requirement": "required",
+        "kind": "agent"
+      },
+      {
+        "packageName": "@cinatra-ai/company-discovery-agent",
+        "edgeType": "runtime",
+        "versionConstraint": {
+          "kind": "semver-range",
+          "range": "*"
+        },
+        "requirement": "optional",
+        "kind": "agent"
+      },
+      {
+        "packageName": "@cinatra-ai/contact-discovery-agent",
+        "edgeType": "runtime",
+        "versionConstraint": {
+          "kind": "semver-range",
+          "range": "*"
+        },
+        "requirement": "optional",
+        "kind": "agent"
+      }
+    ],
     "fieldRenderers": [
       {
         "id": "@cinatra-ai/list-curator-agent:scrape-schema-review",
@@ -25,7 +56,20 @@
         "priority": 90
       }
     ],
-    "consumes": [],
+    "consumes": [
+      {
+        "primitive": "crm_account_get",
+        "requirement": "required"
+      },
+      {
+        "primitive": "crm_list_create",
+        "requirement": "required"
+      },
+      {
+        "primitive": "crm_list_member_add",
+        "requirement": "required"
+      }
+    ],
     "packageType": "agent",
     "manifestVersion": 1,
     "sourceTemplateId": "list-curator-agent-flow",
