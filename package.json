@@ -5,9 +5,31 @@
   "description": "Orchestrator agent that curates a CRM list of accounts OR contacts from a natural-language intent. Invokes @cinatra-ai/web-scrape-agent → @cinatra-ai/company-discovery-agent → @cinatra-ai/contact-discovery-agent via agent_run, pauses at 2 HITL gates (scrape-schema-review + final-list-review), and materializes the resulting CRM list via crm_list_create + per-member crm_list_member_add after operator approval. The mixed member type is not supported — CRM lists are per-object-type.",
   "type": "module",
   "files": [
+    "src",
+    "!src/__tests__",
     "cinatra",
     "skills"
   ],
+  "scripts": {
+    "test": "vitest"
+  },
+  "dependencies": {
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.20.0",
+    "radix-ui": "^1.6.0",
+    "tailwind-merge": "^3.6.0"
+  },
+  "peerDependencies": {
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "@cinatra-ai/sdk-ui": "*"
+  },
+  "peerDependenciesMeta": {
+    "@cinatra-ai/sdk-ui": {
+      "optional": true
+    }
+  },
   "cinatra": {
     "apiVersion": "cinatra.ai/v1",
     "kind": "agent",
@@ -48,12 +70,20 @@
       {
         "id": "@cinatra-ai/list-curator-agent:scrape-schema-review",
         "kind": "scrape-schema-review",
-        "priority": 90
+        "priority": 90,
+        "component": {
+          "entry": "./src/list-curator-scrape-schema-renderer.tsx",
+          "propsApiVersion": 1
+        }
       },
       {
         "id": "@cinatra-ai/list-curator-agent:final-list-review",
         "kind": "final-list-review",
-        "priority": 90
+        "priority": 90,
+        "component": {
+          "entry": "./src/list-curator-final-list-renderer.tsx",
+          "propsApiVersion": 1
+        }
       }
     ],
     "consumes": [
