@@ -400,7 +400,7 @@
           "riskClass": "write_safe",
           "requiresApproval": false,
           "packageName": "@cinatra-ai/list-curator-agent",
-          "description": "Single ApiNode → /api/llm-bridge. Bridge auto-discovers SKILL.md from agents/cinatra/list-curator-agent/skills/list-curator-agent/SKILL.md (via agent_id). metadata.cinatra.toolboxes is INTENTIONALLY OMITTED so the bridge injects Cinatra self-MCP tools; the LLM reaches agent_list, agent_run, agent_run_get, crm_account_get, crm_list_create, crm_list_member_add through that injection. The 2 HITL gates (scrape-schema-review, final-list-review) are declared at root metadata.cinatra.hitlScreens and emitted by the LLM via the standard A2UI INTERRUPT mechanism in the bridge."
+          "description": "Single ApiNode → /api/llm-bridge. Bridge resolves the agent's DECLARED skill dependency edge (cinatra.dependencies -> @cinatra-ai/list-curation-skill, kind:\"skill\") and mounts that extension's single bundle; the skill is no longer embedded in this repo (cinatra#2090). metadata.cinatra.toolboxes is INTENTIONALLY OMITTED so the bridge injects Cinatra self-MCP tools; the LLM reaches agent_list, agent_run, agent_run_get, crm_account_get, crm_list_create, crm_list_member_add through that injection. The 2 HITL gates (scrape-schema-review, final-list-review) are declared at root metadata.cinatra.hitlScreens and emitted by the LLM via the standard A2UI INTERRUPT mechanism in the bridge."
         }
       }
     },
