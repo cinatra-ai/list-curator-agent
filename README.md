@@ -6,7 +6,7 @@ Turn a natural-language ask like "Y Combinator W24 batch — get founder contact
 
 **Usage example:** set `intent` to `"Series A AI startups in Europe — get founder contacts"`. At Gate 1 review the scrape plan and seed URLs. At Gate 2 review the assembled member list; on approval the agent creates the list and adds each member. Outputs: `listId`, `memberCount`, `accountsCreated`, `contactsCreated`, `failures[]`, `summary`.
 
-**Development:** run `node extension-kind-gate.mjs --package-root .` to validate the manifest and README. Orchestration logic: `skills/list-curator-agent/SKILL.md`; flow definition: `cinatra/oas.json`.
+**Development:** run `node extension-kind-gate.mjs --package-root .` to validate the manifest and README. Orchestration logic: the declared `@cinatra-ai/list-curation-skill`; flow definition: `cinatra/oas.json`.
 
 **Troubleshooting:** `failures[]` entries capture per-row errors without aborting the run. `stage: "gate-1"` or `"gate-2"` means the operator rejected at a checkpoint. `stage: "crm-list-create"` means list creation failed and `listId` will be empty.
 
