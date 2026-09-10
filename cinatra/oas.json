@@ -591,7 +591,10 @@
       "metadata": {
         "cinatra": {
           "required": [
-            "intent"
+            "intent",
+            "seedUrls",
+            "targetMemberType",
+            "listName"
           ],
           "hidden": [
             "cinatra_run_id"
