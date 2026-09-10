@@ -3,7 +3,7 @@
   "component_type": "Flow",
   "id": "list-curator-agent-flow",
   "name": "List Curator Agent",
-  "description": "Orchestrator agent that curates a CRM list of accounts OR contacts from a natural-language intent. Invokes @cinatra-ai/web-scrape-agent → @cinatra-ai/company-discovery-agent → @cinatra-ai/contact-discovery-agent via agent_run, pauses at 2 HITL gates (scrape-schema-review + final-list-review), and materializes the resulting CRM list via crm_list_create + per-member crm_list_member_add after operator approval. NOTE: the 'mixed' member type is not supported — CRM lists (Twenty Views) are per-object-type.",
+  "description": "Orchestrator agent that curates a CRM list of accounts OR contacts from a natural-language intent. Invokes @cinatra-ai/web-scrape-agent \u2192 @cinatra-ai/company-discovery-agent \u2192 @cinatra-ai/contact-discovery-agent via agent_run, pauses at 2 HITL gates (scrape-schema-review + final-list-review), and materializes the resulting CRM list via crm_list_create + per-member crm_list_member_add after operator approval. NOTE: the 'mixed' member type is not supported \u2014 CRM lists (Twenty Views) are per-object-type.",
   "metadata": {
     "cinatra": {
       "type": "flow",
@@ -85,6 +85,15 @@
     {
       "title": "summary",
       "type": "string"
+    },
+    {
+      "title": "dispatchedRuns",
+      "type": "array",
+      "json_schema": {
+        "items": {
+          "type": "object"
+        }
+      }
     }
   ],
   "start_node": {
@@ -95,7 +104,22 @@
       "$component_ref": "start"
     },
     {
-      "$component_ref": "curate"
+      "$component_ref": "propose"
+    },
+    {
+      "$component_ref": "schema_gate"
+    },
+    {
+      "$component_ref": "collect"
+    },
+    {
+      "$component_ref": "list_gate"
+    },
+    {
+      "$component_ref": "create"
+    },
+    {
+      "$component_ref": "curation_summary"
     },
     {
       "$component_ref": "end"
@@ -104,19 +128,69 @@
   "control_flow_connections": [
     {
       "component_type": "ControlFlowEdge",
-      "name": "start_to_curate",
+      "name": "start_to_propose",
       "from_node": {
         "$component_ref": "start"
       },
       "to_node": {
-        "$component_ref": "curate"
+        "$component_ref": "propose"
       }
     },
     {
       "component_type": "ControlFlowEdge",
-      "name": "curate_to_end",
+      "name": "propose_to_schema_gate",
       "from_node": {
-        "$component_ref": "curate"
+        "$component_ref": "propose"
+      },
+      "to_node": {
+        "$component_ref": "schema_gate"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "schema_gate_to_collect",
+      "from_node": {
+        "$component_ref": "schema_gate"
+      },
+      "to_node": {
+        "$component_ref": "collect"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "collect_to_list_gate",
+      "from_node": {
+        "$component_ref": "collect"
+      },
+      "to_node": {
+        "$component_ref": "list_gate"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "list_gate_to_create",
+      "from_node": {
+        "$component_ref": "list_gate"
+      },
+      "to_node": {
+        "$component_ref": "create"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "create_to_curation_summary",
+      "from_node": {
+        "$component_ref": "create"
+      },
+      "to_node": {
+        "$component_ref": "curation_summary"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "curation_summary_to_end",
+      "from_node": {
+        "$component_ref": "curation_summary"
       },
       "to_node": {
         "$component_ref": "end"
@@ -126,69 +200,309 @@
   "data_flow_connections": [
     {
       "component_type": "DataFlowEdge",
-      "name": "start_intent_to_curate_intent",
+      "name": "start_intent_to_propose_intent",
       "source_node": {
         "$component_ref": "start"
       },
       "source_output": "intent",
       "destination_node": {
-        "$component_ref": "curate"
+        "$component_ref": "propose"
       },
       "destination_input": "intent"
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "start_seedUrls_to_curate_seedUrls",
+      "name": "start_seedUrls_to_propose_seedUrls",
       "source_node": {
         "$component_ref": "start"
       },
       "source_output": "seedUrls",
       "destination_node": {
-        "$component_ref": "curate"
+        "$component_ref": "propose"
       },
       "destination_input": "seedUrls"
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "start_targetMemberType_to_curate_targetMemberType",
+      "name": "start_targetMemberType_to_propose_targetMemberType",
       "source_node": {
         "$component_ref": "start"
       },
       "source_output": "targetMemberType",
       "destination_node": {
-        "$component_ref": "curate"
+        "$component_ref": "propose"
       },
       "destination_input": "targetMemberType"
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "start_listName_to_curate_listName",
+      "name": "start_listName_to_propose_listName",
       "source_node": {
         "$component_ref": "start"
       },
       "source_output": "listName",
       "destination_node": {
-        "$component_ref": "curate"
+        "$component_ref": "propose"
       },
       "destination_input": "listName"
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "start_cinatra_run_id_to_curate_agent_run_id",
+      "name": "start_cinatra_run_id_to_propose_agent_run_id",
       "source_node": {
         "$component_ref": "start"
       },
       "source_output": "cinatra_run_id",
       "destination_node": {
-        "$component_ref": "curate"
+        "$component_ref": "propose"
       },
       "destination_input": "agent_run_id"
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "curate_listId_to_end_listId",
+      "name": "propose_outputSchema_to_schema_gate_outputSchema",
       "source_node": {
-        "$component_ref": "curate"
+        "$component_ref": "propose"
+      },
+      "source_output": "outputSchema",
+      "destination_node": {
+        "$component_ref": "schema_gate"
+      },
+      "destination_input": "outputSchema"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "propose_seedUrls_to_schema_gate_seedUrls",
+      "source_node": {
+        "$component_ref": "propose"
+      },
+      "source_output": "seedUrls",
+      "destination_node": {
+        "$component_ref": "schema_gate"
+      },
+      "destination_input": "seedUrls"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "propose_plan_to_schema_gate_plan",
+      "source_node": {
+        "$component_ref": "propose"
+      },
+      "source_output": "plan",
+      "destination_node": {
+        "$component_ref": "schema_gate"
+      },
+      "destination_input": "plan"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_intent_to_collect_intent",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "intent",
+      "destination_node": {
+        "$component_ref": "collect"
+      },
+      "destination_input": "intent"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "propose_seedUrls_to_collect_seedUrls",
+      "source_node": {
+        "$component_ref": "propose"
+      },
+      "source_output": "seedUrls",
+      "destination_node": {
+        "$component_ref": "collect"
+      },
+      "destination_input": "seedUrls"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "propose_outputSchema_to_collect_outputSchema",
+      "source_node": {
+        "$component_ref": "propose"
+      },
+      "source_output": "outputSchema",
+      "destination_node": {
+        "$component_ref": "collect"
+      },
+      "destination_input": "outputSchema"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_targetMemberType_to_collect_targetMemberType",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "targetMemberType",
+      "destination_node": {
+        "$component_ref": "collect"
+      },
+      "destination_input": "targetMemberType"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_cinatra_run_id_to_collect_agent_run_id",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "cinatra_run_id",
+      "destination_node": {
+        "$component_ref": "collect"
+      },
+      "destination_input": "agent_run_id"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "collect_candidateMembers_to_list_gate_candidateMembers",
+      "source_node": {
+        "$component_ref": "collect"
+      },
+      "source_output": "candidateMembers",
+      "destination_node": {
+        "$component_ref": "list_gate"
+      },
+      "destination_input": "candidateMembers"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_listName_to_list_gate_listName",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "listName",
+      "destination_node": {
+        "$component_ref": "list_gate"
+      },
+      "destination_input": "listName"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "collect_dispatchedRuns_to_list_gate_dispatchedRuns",
+      "source_node": {
+        "$component_ref": "collect"
+      },
+      "source_output": "dispatchedRuns",
+      "destination_node": {
+        "$component_ref": "list_gate"
+      },
+      "destination_input": "dispatchedRuns"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "collect_failures_to_list_gate_failures",
+      "source_node": {
+        "$component_ref": "collect"
+      },
+      "source_output": "failures",
+      "destination_node": {
+        "$component_ref": "list_gate"
+      },
+      "destination_input": "failures"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_listName_to_create_listName",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "listName",
+      "destination_node": {
+        "$component_ref": "create"
+      },
+      "destination_input": "listName"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_targetMemberType_to_create_targetMemberType",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "targetMemberType",
+      "destination_node": {
+        "$component_ref": "create"
+      },
+      "destination_input": "targetMemberType"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "collect_candidateMembers_to_create_candidateMembers",
+      "source_node": {
+        "$component_ref": "collect"
+      },
+      "source_output": "candidateMembers",
+      "destination_node": {
+        "$component_ref": "create"
+      },
+      "destination_input": "candidateMembers"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_cinatra_run_id_to_create_agent_run_id",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "cinatra_run_id",
+      "destination_node": {
+        "$component_ref": "create"
+      },
+      "destination_input": "agent_run_id"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "create_listId_to_curation_summary_listId",
+      "source_node": {
+        "$component_ref": "create"
+      },
+      "source_output": "listId",
+      "destination_node": {
+        "$component_ref": "curation_summary"
+      },
+      "destination_input": "listId"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "create_memberCount_to_curation_summary_memberCount",
+      "source_node": {
+        "$component_ref": "create"
+      },
+      "source_output": "memberCount",
+      "destination_node": {
+        "$component_ref": "curation_summary"
+      },
+      "destination_input": "memberCount"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "create_failures_to_curation_summary_failures",
+      "source_node": {
+        "$component_ref": "create"
+      },
+      "source_output": "failures",
+      "destination_node": {
+        "$component_ref": "curation_summary"
+      },
+      "destination_input": "failures"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "create_summary_to_curation_summary_summary",
+      "source_node": {
+        "$component_ref": "create"
+      },
+      "source_output": "summary",
+      "destination_node": {
+        "$component_ref": "curation_summary"
+      },
+      "destination_input": "summary"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "create_listId_to_end_listId",
+      "source_node": {
+        "$component_ref": "create"
       },
       "source_output": "listId",
       "destination_node": {
@@ -198,9 +512,9 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "curate_memberCount_to_end_memberCount",
+      "name": "create_memberCount_to_end_memberCount",
       "source_node": {
-        "$component_ref": "curate"
+        "$component_ref": "create"
       },
       "source_output": "memberCount",
       "destination_node": {
@@ -210,9 +524,9 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "curate_accountsCreated_to_end_accountsCreated",
+      "name": "create_accountsCreated_to_end_accountsCreated",
       "source_node": {
-        "$component_ref": "curate"
+        "$component_ref": "create"
       },
       "source_output": "accountsCreated",
       "destination_node": {
@@ -222,9 +536,9 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "curate_contactsCreated_to_end_contactsCreated",
+      "name": "create_contactsCreated_to_end_contactsCreated",
       "source_node": {
-        "$component_ref": "curate"
+        "$component_ref": "create"
       },
       "source_output": "contactsCreated",
       "destination_node": {
@@ -234,9 +548,9 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "curate_failures_to_end_failures",
+      "name": "create_failures_to_end_failures",
       "source_node": {
-        "$component_ref": "curate"
+        "$component_ref": "create"
       },
       "source_output": "failures",
       "destination_node": {
@@ -246,15 +560,27 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "curate_summary_to_end_summary",
+      "name": "create_summary_to_end_summary",
       "source_node": {
-        "$component_ref": "curate"
+        "$component_ref": "create"
       },
       "source_output": "summary",
       "destination_node": {
         "$component_ref": "end"
       },
       "destination_input": "summary"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "collect_dispatchedRuns_to_end_dispatchedRuns",
+      "source_node": {
+        "$component_ref": "collect"
+      },
+      "source_output": "dispatchedRuns",
+      "destination_node": {
+        "$component_ref": "end"
+      },
+      "destination_input": "dispatchedRuns"
     }
   ],
   "$referenced_components": {
@@ -268,9 +594,6 @@
             "intent"
           ],
           "hidden": [
-            "seedUrls",
-            "targetMemberType",
-            "listName",
             "cinatra_run_id"
           ]
         }
@@ -314,16 +637,98 @@
         }
       ]
     },
-    "curate": {
+    "end": {
+      "component_type": "EndNode",
+      "id": "end",
+      "name": "End",
+      "outputs": [
+        {
+          "title": "listId",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "memberCount",
+          "type": "integer",
+          "default": 0
+        },
+        {
+          "title": "accountsCreated",
+          "type": "integer",
+          "default": 0
+        },
+        {
+          "title": "contactsCreated",
+          "type": "integer",
+          "default": 0
+        },
+        {
+          "title": "failures",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object"
+            }
+          },
+          "default": []
+        },
+        {
+          "title": "summary",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "dispatchedRuns",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object"
+            }
+          },
+          "default": []
+        }
+      ],
+      "inputs": [
+        {
+          "title": "listId",
+          "type": "string"
+        },
+        {
+          "title": "memberCount",
+          "type": "integer"
+        },
+        {
+          "title": "accountsCreated",
+          "type": "integer"
+        },
+        {
+          "title": "contactsCreated",
+          "type": "integer"
+        },
+        {
+          "title": "failures",
+          "type": "array"
+        },
+        {
+          "title": "summary",
+          "type": "string"
+        },
+        {
+          "title": "dispatchedRuns",
+          "type": "array"
+        }
+      ]
+    },
+    "propose": {
       "component_type": "ApiNode",
-      "id": "curate",
-      "name": "Curate list",
+      "id": "propose",
+      "name": "Propose the scrape schema",
       "url": "{{CINATRA_BASE_URL}}/api/llm-bridge",
       "http_method": "POST",
       "data": {
         "agent_id": "list-curator-agent",
-        "system": "You are a list-curator orchestrator agent. Follow the SKILL.md step-by-step. Pause at HITL Gate 1 (scrape-schema-review) and HITL Gate 2 (final-list-review). Return a single JSON object with {listId, memberCount, accountsCreated, contactsCreated, failures, summary} — nothing else.",
-        "user": "Curate a CRM list from this intent. Resolve seedUrls if absent (derive from intent). Propose a scrape outputSchema, pause for Gate 1 approval, dispatch child agents per the SKILL.md, pause for Gate 2 approval, then call crm_list_create followed by per-member crm_list_member_add.\nInputs:\n- intent: {{ intent }}\n- seedUrls: {{ seedUrls }}\n- targetMemberType: {{ targetMemberType }}  (must be 'contact' or 'account' — 'mixed' is rejected at Step 1)\n- listName: {{ listName }}",
+        "system": "You are a list-curator planner. Follow the SKILL.md planning steps ONLY. Resolve seedUrls from the intent when the caller supplied none, and propose the scrape outputSchema for the member kind asked for. Do NOT dispatch any child agent and do NOT write anything to the CRM. Return a single JSON object with {seedUrls, outputSchema, plan} - nothing else.",
+        "user": "Plan the curation for this intent.\nInputs:\n- intent: {{ intent }}\n- seedUrls: {{ seedUrls }}\n- targetMemberType: {{ targetMemberType }}  (must be 'contact' or 'account')\n- listName: {{ listName }}",
         "agent_run_id": "{{ agent_run_id }}",
         "cinatra_llm": {
           "preferredProvider": "openai",
@@ -366,6 +771,342 @@
       ],
       "outputs": [
         {
+          "title": "seedUrls",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        },
+        {
+          "title": "outputSchema",
+          "type": "object"
+        },
+        {
+          "title": "plan",
+          "type": "string"
+        }
+      ],
+      "metadata": {
+        "cinatra": {
+          "riskClass": "read_only",
+          "requiresApproval": false,
+          "packageName": "@cinatra-ai/list-curator-agent",
+          "description": "The planning half of the retired single step: it proposes, it never writes. The person approves the proposal at schema_gate before anything is collected."
+        }
+      }
+    },
+    "schema_gate": {
+      "component_type": "InputMessageNode",
+      "id": "schema_gate",
+      "name": "Review the scrape schema",
+      "metadata": {
+        "cinatra": {
+          "riskClass": "read_only",
+          "requiresApproval": true,
+          "renderer": "@cinatra-ai/list-curator-agent:scrape-schema-review",
+          "a2uiSurfaceId": "list-curator:schema-review:input",
+          "autoSkipWhenInputsPresent": false,
+          "description": "Review the seeds and the scrape schema this curation will use, then approve, send them back for revision, or reject the run.",
+          "inputMessageSchema": {
+            "type": "object",
+            "x-renderer": "@cinatra-ai/list-curator-agent:scrape-schema-review",
+            "properties": {
+              "outputSchema": {
+                "type": "object",
+                "title": "Scrape schema",
+                "readOnly": true
+              },
+              "seedUrls": {
+                "type": "array",
+                "title": "Seed pages",
+                "items": {
+                  "type": "string"
+                },
+                "readOnly": true
+              },
+              "plan": {
+                "type": "string",
+                "title": "Plan",
+                "readOnly": true
+              },
+              "decision": {
+                "type": "string",
+                "title": "Decision",
+                "enum": [
+                  "approve",
+                  "revise",
+                  "reject"
+                ],
+                "description": "Approve this step, send it back for revision, or reject the run."
+              },
+              "note": {
+                "type": "string",
+                "title": "Note"
+              }
+            },
+            "required": [
+              "decision"
+            ]
+          }
+        }
+      },
+      "inputs": [
+        {
+          "title": "outputSchema",
+          "type": "object"
+        },
+        {
+          "title": "seedUrls",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "title": "plan",
+          "type": "string"
+        }
+      ],
+      "outputs": [
+        {
+          "title": "userResponse",
+          "type": "string"
+        }
+      ]
+    },
+    "collect": {
+      "component_type": "ApiNode",
+      "id": "collect",
+      "name": "Collect the candidate members",
+      "url": "{{CINATRA_BASE_URL}}/api/llm-bridge",
+      "http_method": "POST",
+      "data": {
+        "agent_id": "list-curator-agent",
+        "system": "You are a list-curator collector. Dispatch the child agents per the SKILL.md with agent_list, agent_run and agent_run_get, and read the CRM with crm_account_get. Build the candidate member rows against the APPROVED outputSchema. Do NOT create the list and do NOT add anyone to it - the list is created only after the person approves the members, by a later step. Return a single JSON object with {candidateMembers, dispatchedRuns, failures} - nothing else. dispatchedRuns lists one {runId, agent, status} entry per child run you started, so the person can open each of them.",
+        "user": "Collect the members for this curation against the approved schema.\nInputs:\n- intent: {{ intent }}\n- seedUrls: {{ seedUrls }}\n- outputSchema: {{ outputSchema }}\n- targetMemberType: {{ targetMemberType }}",
+        "agent_run_id": "{{ agent_run_id }}",
+        "cinatra_llm": {
+          "preferredProvider": "openai",
+          "preferredModel": "gpt-5.5"
+        }
+      },
+      "inputs": [
+        {
+          "title": "intent",
+          "type": "string"
+        },
+        {
+          "title": "seedUrls",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "string",
+              "format": "uri"
+            }
+          }
+        },
+        {
+          "title": "outputSchema",
+          "type": "object"
+        },
+        {
+          "title": "targetMemberType",
+          "type": "string"
+        },
+        {
+          "title": "agent_run_id",
+          "type": "string"
+        }
+      ],
+      "outputs": [
+        {
+          "title": "candidateMembers",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "title": "dispatchedRuns",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "title": "failures",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      ],
+      "metadata": {
+        "cinatra": {
+          "riskClass": "read_only",
+          "requiresApproval": false,
+          "packageName": "@cinatra-ai/list-curator-agent",
+          "description": "The collecting half of the retired single step. It dispatches and reads; every CRM write waits behind list_gate."
+        }
+      }
+    },
+    "list_gate": {
+      "component_type": "InputMessageNode",
+      "id": "list_gate",
+      "name": "Approve the list",
+      "metadata": {
+        "cinatra": {
+          "riskClass": "approval",
+          "requiresApproval": true,
+          "renderer": "@cinatra-ai/list-curator-agent:final-list-review",
+          "a2uiSurfaceId": "list-curator:final-list-review:input",
+          "autoSkipWhenInputsPresent": false,
+          "description": "Nothing is written to the CRM before you approve: this is the list that will be created and these are the members that will be added to it.",
+          "inputMessageSchema": {
+            "type": "object",
+            "x-renderer": "@cinatra-ai/list-curator-agent:final-list-review",
+            "properties": {
+              "candidateMembers": {
+                "type": "array",
+                "title": "Members",
+                "items": {
+                  "type": "object"
+                },
+                "readOnly": true
+              },
+              "listName": {
+                "type": "string",
+                "title": "List name"
+              },
+              "dispatchedRuns": {
+                "type": "array",
+                "title": "Runs this curation dispatched",
+                "items": {
+                  "type": "object"
+                },
+                "readOnly": true
+              },
+              "failures": {
+                "type": "array",
+                "title": "What could not be collected",
+                "items": {
+                  "type": "object"
+                },
+                "readOnly": true
+              },
+              "decision": {
+                "type": "string",
+                "title": "Decision",
+                "enum": [
+                  "approve",
+                  "revise",
+                  "reject"
+                ],
+                "description": "Approve this step, send it back for revision, or reject the run."
+              },
+              "note": {
+                "type": "string",
+                "title": "Note"
+              }
+            },
+            "required": [
+              "decision"
+            ]
+          }
+        }
+      },
+      "inputs": [
+        {
+          "title": "candidateMembers",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "title": "listName",
+          "type": "string"
+        },
+        {
+          "title": "dispatchedRuns",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "title": "failures",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "title": "userResponse",
+          "type": "string"
+        }
+      ]
+    },
+    "create": {
+      "component_type": "ApiNode",
+      "id": "create",
+      "name": "Create the list and add its members",
+      "url": "{{CINATRA_BASE_URL}}/api/llm-bridge",
+      "http_method": "POST",
+      "data": {
+        "agent_id": "list-curator-agent",
+        "system": "You are a list-curator writer. The person has APPROVED the members below. Call crm_list_create once for the list, then crm_list_member_add once per approved member. Create nothing else. Return a single JSON object with {listId, memberCount, accountsCreated, contactsCreated, failures, summary} - nothing else.",
+        "user": "Create the approved list and add its approved members.\nInputs:\n- listName: {{ listName }}\n- targetMemberType: {{ targetMemberType }}\n- candidateMembers: {{ candidateMembers }}",
+        "agent_run_id": "{{ agent_run_id }}",
+        "cinatra_llm": {
+          "preferredProvider": "openai",
+          "preferredModel": "gpt-5.5"
+        }
+      },
+      "inputs": [
+        {
+          "title": "listName",
+          "type": "string"
+        },
+        {
+          "title": "targetMemberType",
+          "type": "string"
+        },
+        {
+          "title": "candidateMembers",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "title": "agent_run_id",
+          "type": "string"
+        }
+      ],
+      "outputs": [
+        {
           "title": "listId",
           "type": "string"
         },
@@ -400,34 +1141,22 @@
           "riskClass": "write_safe",
           "requiresApproval": false,
           "packageName": "@cinatra-ai/list-curator-agent",
-          "description": "Single ApiNode → /api/llm-bridge. Bridge resolves the agent's DECLARED skill dependency edge (cinatra.dependencies -> @cinatra-ai/list-curation-skill, kind:\"skill\") and mounts that extension's single bundle; the skill is no longer embedded in this repo (cinatra#2090). metadata.cinatra.toolboxes is INTENTIONALLY OMITTED so the bridge injects Cinatra self-MCP tools; the LLM reaches agent_list, agent_run, agent_run_get, crm_account_get, crm_list_create, crm_list_member_add through that injection. The 2 HITL gates (scrape-schema-review, final-list-review) are declared at root metadata.cinatra.hitlScreens and emitted by the LLM via the standard A2UI INTERRUPT mechanism in the bridge."
+          "description": "The only step that writes: it runs behind the list approval, so the list and its membership exist only once the person said yes."
         }
       }
     },
-    "end": {
-      "component_type": "EndNode",
-      "id": "end",
-      "name": "End",
-      "outputs": [
+    "curation_summary": {
+      "component_type": "OutputMessageNode",
+      "id": "curation_summary",
+      "name": "Curation result",
+      "inputs": [
         {
           "title": "listId",
-          "type": "string",
-          "default": ""
+          "type": "string"
         },
         {
           "title": "memberCount",
-          "type": "integer",
-          "default": 0
-        },
-        {
-          "title": "accountsCreated",
-          "type": "integer",
-          "default": 0
-        },
-        {
-          "title": "contactsCreated",
-          "type": "integer",
-          "default": 0
+          "type": "integer"
         },
         {
           "title": "failures",
@@ -436,15 +1165,19 @@
             "items": {
               "type": "object"
             }
-          },
-          "default": []
+          }
         },
         {
           "title": "summary",
-          "type": "string",
-          "default": ""
+          "type": "string"
         }
-      ]
+      ],
+      "message": "{# pyagentspec-input-hint (do not remove): {{ listId }} {{ memberCount }} {{ failures }} {{ summary }} #}{% if not listId %}The list could not be created, so nothing was saved: {{ summary }}{% elif not memberCount %}The list was created but no members were added to it - nothing came back from the pages that were searched.{% else %}{{ memberCount }} members were added to the list. {{ summary }}{% endif %}{% if failures %} Some entries could not be collected: {{ failures | length }} of them; they are listed with the run.{% endif %}",
+      "metadata": {
+        "cinatra": {
+          "purpose": "plain-language-curation-ending"
+        }
+      }
     }
   }
 }

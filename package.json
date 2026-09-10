@@ -10,7 +10,7 @@
     "cinatra"
   ],
   "scripts": {
-    "test": "vitest"
+    "test": "node --test tests/*.test.mjs && vitest run"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
@@ -97,6 +97,18 @@
     ],
     "consumes": [
       {
+        "primitive": "agent_list",
+        "requirement": "required"
+      },
+      {
+        "primitive": "agent_run",
+        "requirement": "required"
+      },
+      {
+        "primitive": "agent_run_get",
+        "requirement": "required"
+      },
+      {
         "primitive": "crm_account_get",
         "requirement": "required"
       },
@@ -115,7 +127,7 @@
     "sourceVersionId": "5cd6c578-f94c-42e8-80d1-e6e87a6b1ae1",
     "sourceVersionNumber": 1,
     "riskLevel": "low",
-    "hasApprovalGates": false,
+    "hasApprovalGates": true,
     "toolAccess": [],
     "ownerOrgId": null
   }
