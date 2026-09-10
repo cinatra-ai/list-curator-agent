@@ -10,7 +10,7 @@
     "cinatra"
   ],
   "scripts": {
-    "test": "node --test tests/*.test.mjs && vitest run"
+    "test": "vitest run"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

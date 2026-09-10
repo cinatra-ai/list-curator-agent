@@ -1,7 +1,7 @@
 // W8 (cinatra#3096) item (11) — the inputs a person sets are drawn on the setup form.
 // The setup form draws the fields named in metadata.cinatra.required; a field
 // left out of both lists is never shown and never prompted for.
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

@@ -5,7 +5,7 @@
 // a review. These tests hold the flow to real pauses, placed where they guard
 // what they claim to guard — the list's creation and its membership.
 
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
