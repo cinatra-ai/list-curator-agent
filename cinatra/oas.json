@@ -694,31 +694,48 @@
       "inputs": [
         {
           "title": "listId",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         {
           "title": "memberCount",
-          "type": "integer"
+          "type": "integer",
+          "default": 0
         },
         {
           "title": "accountsCreated",
-          "type": "integer"
+          "type": "integer",
+          "default": 0
         },
         {
           "title": "contactsCreated",
-          "type": "integer"
+          "type": "integer",
+          "default": 0
         },
         {
           "title": "failures",
-          "type": "array"
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object"
+            }
+          },
+          "default": []
         },
         {
           "title": "summary",
-          "type": "string"
+          "type": "string",
+          "default": ""
         },
         {
           "title": "dispatchedRuns",
-          "type": "array"
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "object"
+            }
+          },
+          "default": []
         }
       ]
     },
