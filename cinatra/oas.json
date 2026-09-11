@@ -785,7 +785,8 @@
         },
         {
           "title": "outputSchema",
-          "type": "object"
+          "type": "object",
+          "description": "The JSON Schema the scrape runs are held to. Intentionally free-form: this is a raw JSON Schema document the person edits as text at the schema_gate review, so its members are chosen per curation run and this agent declares no fixed shape for them."
         },
         {
           "title": "plan",
@@ -930,6 +931,7 @@
         {
           "title": "candidateMembers",
           "type": "array",
+          "description": "The rows proposed for the list. Intentionally free-form: each row's members are dictated by the outputSchema the person approved for this run, so a fixed member list declared here would not describe the rows the run actually collects.",
           "json_schema": {
             "items": {
               "type": "object"
@@ -939,18 +941,52 @@
         {
           "title": "dispatchedRuns",
           "type": "array",
+          "description": "One entry per child run this step started, so the person can open each of them.",
           "json_schema": {
             "items": {
-              "type": "object"
+              "type": "object",
+              "properties": {
+                "runId": {
+                  "type": "string",
+                  "description": "The id of the child agent run."
+                },
+                "agent": {
+                  "type": "string",
+                  "description": "The package name of the child agent that was dispatched."
+                },
+                "status": {
+                  "type": "string",
+                  "description": "The run status read back from agent_run_get."
+                }
+              }
             }
           }
         },
         {
           "title": "failures",
           "type": "array",
+          "description": "What could not be collected or added, one entry per failed row.",
           "json_schema": {
             "items": {
-              "type": "object"
+              "type": "object",
+              "properties": {
+                "rowIndex": {
+                  "type": "integer",
+                  "description": "The position of the candidate row this failure belongs to."
+                },
+                "stage": {
+                  "type": "string",
+                  "description": "The step that failed, named so the person can tell collection from creation."
+                },
+                "error": {
+                  "type": "string",
+                  "description": "What went wrong, in one sentence the person can read."
+                },
+                "accountId": {
+                  "type": "string",
+                  "description": "The CRM account this failure hangs off, where the row named one."
+                }
+              }
             }
           }
         }
@@ -1128,9 +1164,28 @@
         {
           "title": "failures",
           "type": "array",
+          "description": "What could not be collected or added, one entry per failed row.",
           "json_schema": {
             "items": {
-              "type": "object"
+              "type": "object",
+              "properties": {
+                "rowIndex": {
+                  "type": "integer",
+                  "description": "The position of the candidate row this failure belongs to."
+                },
+                "stage": {
+                  "type": "string",
+                  "description": "The step that failed, named so the person can tell collection from creation."
+                },
+                "error": {
+                  "type": "string",
+                  "description": "What went wrong, in one sentence the person can read."
+                },
+                "accountId": {
+                  "type": "string",
+                  "description": "The CRM account this failure hangs off, where the row named one."
+                }
+              }
             }
           }
         },
