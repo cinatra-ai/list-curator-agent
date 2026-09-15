@@ -1,0 +1,73 @@
+{
+  "$comment": "Named, versioned machine-verification suite for cinatra-ai/list-curator-agent - the gate-arm half of the truthful verification-record model (the Truthful Attribution protocol section 4). The truthful-attribution-gate reads THIS file at the merged SHA (authoritative, no TOCTOU) when a merge record carries a Gate-suite arm: the cited suiteId@version must equal this file's, the Accountable trailer must equal accountable{github,name,email}, and every requiredContexts entry must have concluded success on the reviewed head. The four pinned entries are exactly the required status checks of this repository's main ruleset, each naming the reusable cinatra-ai/ci workflow it calls and the 40-character SHA this repository's own caller workflow pins for it. The truthful-attribution-gate entry is carried BY NAME with its callerPath and allowedEvents and no engine pin: that pin lives in the caller's uses: line, itself a high-risk path, and the merge road reads this context by name. highRiskPaths EXTENDS the central cinatra-ai/ci defaults (the gate verifies the effective set is a superset); this repository ships no release or publish script of its own - its only publish surface is .github/workflows/release.yml, already covered by .github/**. High-risk changes (this file is itself one - see **/gate-suite.json) require the HUMAN arm at tier=maintainer; the gate arm alone is rejected, so this file's birth carries a maintainer Reviewed-by, not a self-blessing gate arm. lastAuditedAt + auditEvidence are the section 4 monthly-audit record; the Accountable engineer re-audits monthly and bumps BOTH coupled in one commit (the gate warns beyond 35d, fails the gate arm beyond 65d; the human arm is always still available).",
+  "suiteId": "list-curator-agent-core",
+  "version": "2026.09.1",
+  "accountable": {
+    "name": "Sandro Groganz",
+    "email": "sandro@cinatra.ai",
+    "github": "groganz"
+  },
+  "requiredContexts": [
+    {
+      "context": "actions-pinned-gate / actions-pinned-gate",
+      "workflow": "cinatra-ai/ci/.github/workflows/actions-pinned-gate.yml",
+      "pinned": "4c903fe9ca71ad47752a2bc92b72893e5f7c9814"
+    },
+    {
+      "context": "gitignore-gate / gitignore-gate",
+      "workflow": "cinatra-ai/ci/.github/workflows/gitignore-gate.yml",
+      "pinned": "4c903fe9ca71ad47752a2bc92b72893e5f7c9814"
+    },
+    {
+      "context": "source-leak-gate / source-leak-gate",
+      "workflow": "cinatra-ai/ci/.github/workflows/source-leak-gate.yml",
+      "pinned": "00ac7b92c2ca1ca291a1824d743cbd00c4a3e48e"
+    },
+    {
+      "context": "secret-scan-gate / secret-scan-gate",
+      "workflow": "cinatra-ai/ci/.github/workflows/secret-scan-gate.yml",
+      "pinned": "a8677e50ba02fcb11929e94c70fb5ba96a8ea3ae"
+    },
+    {
+      "context": "truthful-attribution-gate / truthful-attribution-gate",
+      "callerPath": ".github/workflows/truthful-attribution-gate.yml",
+      "allowedEvents": [
+        "pull_request",
+        "push",
+        "merge_group"
+      ]
+    }
+  ],
+  "highRiskPaths": [
+    "**/auth/**",
+    "**/permissions/**",
+    "**/session*",
+    "**/session/**",
+    "src/lib/auth*",
+    "src/lib/auth/**",
+    "**/webhooks/**/verify*",
+    "**/*signature*verif*",
+    "**/secrets/**",
+    "**/migrations/**",
+    "**/schema.prisma",
+    "**/schema.sql",
+    "**/*.migration.*",
+    ".github/**",
+    "**/CODEOWNERS",
+    "**/release*.sh",
+    "**/publish*.sh",
+    "scripts/release/**",
+    "scripts/publish/**",
+    "**/gate-suite.json",
+    "config/high-risk-defaults.json",
+    ".github/workflows/truthful-attribution-gate.yml",
+    "packages/sdk-extensions/**",
+    "**/extension-loader/**",
+    "**/trust-gate/**",
+    "**/signature-gate/**",
+    "**/capability-registry/**",
+    "**/transport-registry/**"
+  ],
+  "lastAuditedAt": "2026-09-15",
+  "auditEvidence": "Birth audit of list-curator-agent-core on the pull request that adds this file: the five listed contexts are exactly the four required status checks of this repository's main ruleset plus the truthful-attribution-gate read by name, each pinned entry carrying the 40-character SHA read from this repository's own caller workflow at head 2c22aa196ab4a46c848da56eb0c9d3af3041637c, and the suite arms a merge record only on a head where every one of those listed contexts has concluded green."
+}
