@@ -157,6 +157,18 @@ export const HOST_PORT_NAMES = new Set([
 // inventory.SDK_PACKAGES — the only permitted first-party @cinatra-ai CODE deps.
 export const SDK_PACKAGES = new Set(["@cinatra-ai/sdk-extensions", "@cinatra-ai/sdk-ui"]);
 
+// inventory.HOST_SERVED_PACKAGES — the HOST-SERVED first-party class, DISTINCT
+// from the SDK class. The host serves these modules to an extension at run time
+// (a client bundle leaves them EXTERNAL, like React, and the host module
+// registry resolves them to the host ONE instance) or resolves them for the
+// parts it compiles from source, so an extension importing one takes on NO
+// extraction-blocking coupling: there is no package to carve out. They are
+// therefore ALLOWED first-party specifiers rather than SDK-only violations. The
+// id is VIRTUAL — no package is published under it and it is never declared as
+// a dependency or a peer. A subpath collapses to the base package, exactly as
+// in the SDK class.
+export const HOST_SERVED_PACKAGES = new Set(["@cinatra-ai/design-primitives"]);
+
 // host-peer-value-import-ban.HOST_PEERS — value imports of these over the
 // serverEntry graph are forbidden (the prod file:// loader cannot resolve them).
 export const HOST_PEERS = new Set([
@@ -305,12 +317,14 @@ export function scanHostInternalImports(text) {
   return [...hits];
 }
 
-/** Is `spec` a NON-SDK first-party (@cinatra-ai) base-package coupling? */
+/** Is `spec` a NON-SDK first-party (@cinatra-ai) base-package coupling? SDK
+ * packages and HOST-SERVED packages (and their subpaths) are allowed. */
 export function isSdkOnlyViolation(spec) {
   const base = basePackageOf(spec);
   if (!base || !base.startsWith("@")) return false;
   const scope = base.split("/")[0];
   if (scope !== FIRST_PARTY_SCOPE) return false;
+  if (HOST_SERVED_PACKAGES.has(base)) return false; // served by the host at run time
   return !SDK_PACKAGES.has(base);
 }
 

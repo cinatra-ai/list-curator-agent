@@ -3,18 +3,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LinkIcon } from "lucide-react";
 
-import { Badge } from "./components/ui/badge";
-import { Button } from "./components/ui/button";
 import {
+  Badge,
+  Button,
   Card,
   CardContent,
   CardFooter,
   CardHeader,
   CardTitle,
-} from "./components/ui/card";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "./components/ui/input-group";
-import { Label } from "./components/ui/label";
-import { Textarea } from "./components/ui/textarea";
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  Label,
+  Textarea,
+} from "@cinatra-ai/design-primitives";
 
 import type { FieldRendererProps } from "@cinatra-ai/sdk-ui/field-renderer-props";
 
