@@ -2,17 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { Badge } from "./components/ui/badge";
-import { Button } from "./components/ui/button";
 import {
+  Badge,
+  Button,
   Card,
   CardContent,
   CardFooter,
   CardHeader,
   CardTitle,
-} from "./components/ui/card";
-import { Input } from "./components/ui/input";
-import { Label } from "./components/ui/label";
+  Input,
+  Label,
+} from "@cinatra-ai/design-primitives";
 
 import type { FieldRendererProps } from "@cinatra-ai/sdk-ui/field-renderer-props";
 
