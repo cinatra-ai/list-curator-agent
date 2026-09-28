@@ -128,3 +128,27 @@ test("(19) an empty or failed curation ends in plain language", () => {
   assert.match(summary.message, /nothing|no one|no members/i, "an empty curation has no plain-language ending");
   assert.match(summary.message, /could not|failed/i, "a failed curation has no plain-language ending");
 });
+
+// ---------------------------------------------------------------------------
+// (cinatra#3736) the scrape dispatch hands the scraper every input it requires
+// ---------------------------------------------------------------------------
+
+// The scraper's own StartNode names these inputs as required. A child run
+// dispatched without one of them stops at a setup question nobody answers.
+const SCRAPER_REQUIRED_INPUTS = ["seedUrls", "outputSchemaSource", "instructions"];
+
+test("(cinatra#3736) the scrape dispatch hands the scraper every input it requires", () => {
+  const system = refs.collect.data.system;
+  const missing = SCRAPER_REQUIRED_INPUTS.filter((key) => !system.includes(key));
+  assert.deepEqual(missing, [], "the scrape dispatch leaves out an input the scraper requires");
+  assert.match(system, /@cinatra-ai\/web-scrape-agent/, "the dispatch sentence does not name the scraper");
+  assert.match(
+    system,
+    /outputSchemaSource as an empty object \{\} because the approved schema is handed over directly in outputSchema/,
+    "the schema source is not handed over as an empty object beside the approved schema",
+  );
+  assert.ok(
+    (pkg.cinatra.dependencies ?? []).some((d) => d.packageName === "@cinatra-ai/web-scrape-agent" && d.kind === "agent"),
+    "the scraper is not declared as a dependency of this agent",
+  );
+});
