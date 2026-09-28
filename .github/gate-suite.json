@@ -1,7 +1,7 @@
 {
-  "$comment": "Named, versioned machine-verification suite for cinatra-ai/list-curator-agent - the gate-arm half of the truthful verification-record model (the Truthful Attribution protocol section 4). The truthful-attribution-gate reads THIS file at the merged SHA (authoritative, no TOCTOU) when a merge record carries a Gate-suite arm: the cited suiteId@version must equal this file's, the Accountable trailer must equal accountable{github,name,email}, and every requiredContexts entry must have concluded success on the reviewed head. The four pinned entries are exactly the required status checks of this repository's main ruleset, each naming the reusable cinatra-ai/ci workflow it calls and the 40-character SHA this repository's own caller workflow pins for it. The truthful-attribution-gate entry is carried BY NAME with its callerPath and allowedEvents and no engine pin: that pin lives in the caller's uses: line, itself a high-risk path, and the merge road reads this context by name. highRiskPaths EXTENDS the central cinatra-ai/ci defaults (the gate verifies the effective set is a superset); this repository ships no release or publish script of its own - its only publish surface is .github/workflows/release.yml, already covered by .github/**. High-risk changes (this file is itself one - see **/gate-suite.json) require the HUMAN arm at tier=maintainer; the gate arm alone is rejected, so this file's birth carries a maintainer Reviewed-by, not a self-blessing gate arm. lastAuditedAt + auditEvidence are the section 4 monthly-audit record; the Accountable engineer re-audits monthly and bumps BOTH coupled in one commit (the gate warns beyond 35d, fails the gate arm beyond 65d; the human arm is always still available).",
+  "$comment": "Named, versioned machine-verification suite for cinatra-ai/list-curator-agent — the gate-arm half of the truthful verification-record model (the Truthful Attribution protocol §4). The truthful-attribution-gate reads THIS file at the merged SHA (authoritative, no TOCTOU) when a merge record carries a Gate-suite arm: the cited suiteId@version must equal this file's, the Accountable trailer must equal accountable{github,name,email}, and every requiredContexts entry must have concluded success on the reviewed head. requiredContexts names every check this repository's own workflows run on each pull request into main: the four contexts its main ruleset requires (actions-pinned-gate, gitignore-gate, source-leak-gate, secret-scan-gate) and the one further reusable gate its callers run (meta-commentary-gate from .github/workflows/docs-meta-commentary.yml; this repository has no extension-conformance-gate caller), each carrying the reusable workflow it calls and the 40-character sha this repository's OWN caller pins for it; the build and kind-gates jobs of .github/workflows/ci.yml, which call no reusable workflow and so carry neither workflow nor pinned; and the truthful-attribution-gate context with its callerPath and allowedEvents and the reusable workflow and engine sha its caller pins (641255c87fd063dd4c2d4d6ff1c785ba77bf2a5c, the engine that applies highRiskManifestRules; a suite that carries that key must name its engine here). GitHub's code-scanning default setup also reports on pull requests here (CodeQL, Analyze (actions), Analyze (javascript-typescript)); it is not one of this repository's workflows and is not listed. A change that moves one of these caller pins moves the matching pinned value here in the same commit and bumps the version. highRiskPaths EXTENDS the central cinatra-ai/ci defaults (config/high-risk-defaults.json, highRiskGlobs; the engine's classifyHighRisk fails closed unless the effective set is a superset): its first 35 globs are the defaults at cinatra-ai/ci 641255c87fd063dd4c2d4d6ff1c785ba77bf2a5c, the engine this repository's attribution caller pins, identical at 1e40675e1642dcc32d195f27b3deb285b4d3d6fc, 416a75707fdcfeb768b41c3a54f944078d1ab8fc and fdc26811b97f435bbf8a754247631db39267a197 and a strict superset of the 28 at 8eede1022e835997d94974e4bd6205daf72131a2, the engine that caller pinned before this change, so the superset check passes at each of them; the rest are this package's own: extension-kind-gate.mjs, the self-contained extension validator the kind-gates check runs. Nothing else here is security-bearing: besides a manifest and cinatra/oas.json — a flow whose three calls go to the platform's own model bridge (the collecting call after the operator approves the scrape schema, the list-writing call after the operator approves the list), so what those calls run is the platform's code, not code shipped here — the package ships two field renderers under src/ that draw their values as text through the platform's design primitives, with no raw html, no sanitizer and no road to the network of their own. A display-only change is not high-risk, so the two renderers, cinatra/oas.json, the tests with their fixtures and their test double, and the TypeScript and Vitest configs (the Vitest config aliases the design primitives to that test double and nothing else, and names no sanitizer) are deliberately not listed. .github/** and **/gate-suite.json are already central defaults. package.json, whose cinatra block is the authoritative extension manifest and which also carries the test script and the dependency fields the build check runs and validates, is classed by the content of its change instead of by a glob (highRiskManifestRules, the owner's decision of 2026-09-24): an entry added under cinatra.artifact.ui.renderers or cinatra.fieldRenderers (a display) or under exports (a published module path), or a changed dependency field, makes the change high-risk; dropping a display, claiming a representation, bumping the version or reordering the file does not. The rule is the one the artifact pack suites carry, with the two paths an agent's manifest uses for the same fields appended: cinatra.fieldRenderers, the agent's field renderer bindings, and cinatra.agentDependencies, its sub-agent map. High-risk changes (this file is itself one — see **/gate-suite.json in the defaults) require the HUMAN arm at tier=maintainer; the gate arm alone is rejected, so this file's birth carried a maintainer Reviewed-by, and no change to it merges on a self-blessing gate arm. lastAuditedAt + auditEvidence are the §4 monthly-audit record; the Accountable engineer re-audits monthly and bumps BOTH coupled in one commit (the gate warns >35d, fails the gate arm >65d; the human arm is always still available).",
   "suiteId": "list-curator-agent-core",
-  "version": "2026.09.1",
+  "version": "2026.09.2",
   "accountable": {
     "name": "Sandro Groganz",
     "email": "sandro@cinatra.ai",
@@ -29,7 +29,20 @@
       "pinned": "a8677e50ba02fcb11929e94c70fb5ba96a8ea3ae"
     },
     {
+      "context": "meta-commentary-gate / meta-commentary-gate",
+      "workflow": "cinatra-ai/ci/.github/workflows/meta-commentary-gate.yml",
+      "pinned": "533a12a64a596e6ce5df3887e0ebbad5a7d6b953"
+    },
+    {
+      "context": "build"
+    },
+    {
+      "context": "kind-gates"
+    },
+    {
       "context": "truthful-attribution-gate / truthful-attribution-gate",
+      "workflow": "cinatra-ai/ci/.github/workflows/truthful-attribution-gate.yml",
+      "pinned": "641255c87fd063dd4c2d4d6ff1c785ba77bf2a5c",
       "callerPath": ".github/workflows/truthful-attribution-gate.yml",
       "allowedEvents": [
         "pull_request",
@@ -73,8 +86,34 @@
     "**/integrations-registry.json",
     "scripts/sync-docs.mjs",
     "scripts/docs-contract-gate.mjs",
-    "scripts/lib/docs-contract-rules.mjs"
+    "scripts/lib/docs-contract-rules.mjs",
+    "extension-kind-gate.mjs"
   ],
-  "lastAuditedAt": "2026-09-15",
-  "auditEvidence": "Birth audit of list-curator-agent-core on the pull request that adds this file: the five listed contexts are exactly the four required status checks of this repository's main ruleset plus the truthful-attribution-gate read by name, each pinned entry carrying the 40-character SHA read from this repository's own caller workflow at head 2c22aa196ab4a46c848da56eb0c9d3af3041637c, and the suite arms a merge record only on a head where every one of those listed contexts has concluded green."
+  "highRiskManifestRules": [
+    {
+      "path": "package.json",
+      "addedUnder": [
+        "cinatra.artifact.ui.renderers",
+        "exports",
+        "cinatra.fieldRenderers"
+      ],
+      "changedKeys": [
+        "dependencies",
+        "devDependencies",
+        "peerDependencies",
+        "peerDependenciesMeta",
+        "optionalDependencies",
+        "bundleDependencies",
+        "bundledDependencies",
+        "overrides",
+        "resolutions",
+        "pnpm",
+        "cinatra.dependencies",
+        "cinatra.artifact.agentDependencies",
+        "cinatra.agentDependencies"
+      ]
+    }
+  ],
+  "lastAuditedAt": "2026-09-28",
+  "auditEvidence": "2026-09-28, the move of this suite from its first shape (version 2026.09.1) to the current shape: requiredContexts was read from this repository's own workflows at base a66be10bb1f61ce6649a79db278ee2ba863237ca — the main ruleset (baseline-protection) requires actions-pinned-gate, gitignore-gate, source-leak-gate and secret-scan-gate, and every pull request into main also runs meta-commentary-gate, build, kind-gates and truthful-attribution-gate — and cross-checked against the check runs of the latest pull request, cinatra-ai/list-curator-agent#63 at head 3a97e4fa982175bdae96f9892d25597f9a1412a5 (merged as that base; no pull request is open, and that head's tree is the base tree), where all 8 concluded success, each on an Actions run of that head, and the run of each reusable gate below referenced its reusable workflow at exactly the sha this repository's own caller pins at that base (actions-pinned-gate at 4c903fe9ca71ad47752a2bc92b72893e5f7c9814, gitignore-gate at 4c903fe9ca71ad47752a2bc92b72893e5f7c9814, source-leak-gate at 00ac7b92c2ca1ca291a1824d743cbd00c4a3e48e, secret-scan-gate at a8677e50ba02fcb11929e94c70fb5ba96a8ea3ae, meta-commentary-gate at 533a12a64a596e6ce5df3887e0ebbad5a7d6b953). At that base the attribution caller (.github/workflows/truthful-attribution-gate.yml, warn mode) pinned engine 8eede1022e835997d94974e4bd6205daf72131a2, which does not apply highRiskManifestRules and which the merge preflight does not support, so this commit moves that caller's uses: pin and ref: input together to 641255c87fd063dd4c2d4d6ff1c785ba77bf2a5c, the engine the current-shape pack suites pin: the attribution context's pin therefore binds on the runs of this change's own pull request head, not on the earlier runs, which executed 8eede1022e835997d94974e4bd6205daf72131a2 and bind it by name, caller path and event only. The version moves from 2026.09.1 to 2026.09.2 because the material fields changed: requiredContexts gains meta-commentary-gate, build and kind-gates and names the attribution context's engine; highRiskPaths keeps every path the first shape listed and adds extension-kind-gate.mjs; highRiskManifestRules is new. Checked offline today: the merge preflight's own suite reader (one document, schema, audit record, the superset and risk classes at its engine pin, the manifest rule, the version bump against the first shape), the attribution engine's own functions at 641255c87fd063dd4c2d4d6ff1c785ba77bf2a5c and at 8eede1022e835997d94974e4bd6205daf72131a2 (superset, version bump, audit staleness, the gate-arm replay), a control suite with one central default removed (refused by both), control manifest changes (an added dependency and an added display or export class as high-risk; a version bump alone does not), the kind gate and the source-leak engine at 00ac7b92c2ca1ca291a1824d743cbd00c4a3e48e; every listed context must be read green on this change's own pull request head before it merges."
 }
