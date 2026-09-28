@@ -2,12 +2,15 @@ name: truthful-attribution-gate
 # Thin caller for the org-reusable truthful-attribution-gate (cinatra-ai/ci),
 # per the ratified truthful-attribution spec. WARN mode
 # (rollout): findings are annotated, the check is ALWAYS green —
-# it never fails a PR. No .github/gate-suite.json committed (WARN scope exercises
-# presence + the human arm; the gate-suite arm is not exercised without a suite).
-# Pinned to the immutable engine SHA proven green in cinatra ENFORCE today; this
-# is ci `main` HEAD (8eede102), one commit ahead of the current release tag, so the
-# `uses:` comment carries it as a build-metadata suffix rather than a bare tag that
-# would be false metadata.
+# it never fails a PR. .github/gate-suite.json names this engine in its
+# truthful-attribution-gate entry (workflow + pinned): move that pin, the `uses:`
+# pin and the `ref:` input below together, in one commit.
+# Pinned to the immutable engine SHA 641255c8, ci `main` HEAD when the manifest
+# content rule landed, ahead of the latest release tag — so
+# the trailing version comment on the `uses:` line is an honest main-branch
+# prerelease marker derived from that SHA (a `0.0.0-main.<sha>` form, NOT a real
+# release tag — claiming one would be false metadata). It is only there to
+# satisfy the repo's actions-pinned-gate, which requires a version comment.
 
 on:
   pull_request:
@@ -18,7 +21,7 @@ permissions:
   contents: read
   pull-requests: read
   checks: read
-  # actions:read is MANDATORY: the engine at 8eede102 resolves a reusable-workflow
+  # actions:read is MANDATORY: the engine at 641255c8 resolves a reusable-workflow
   # check-run to its Actions run (GET /actions/runs/{id}) to verify referenced_workflows[]
   # at the pinned SHA. With an explicit permissions block, any omitted scope defaults
   # to `none`, and a called reusable workflow cannot exceed the caller's grant — so
@@ -28,7 +31,7 @@ permissions:
 
 jobs:
   truthful-attribution-gate:                 # caller job id MUST stay this exact string
-    uses: cinatra-ai/ci/.github/workflows/truthful-attribution-gate.yml@8eede1022e835997d94974e4bd6205daf72131a2 # v0.1.0+8eede102
+    uses: cinatra-ai/ci/.github/workflows/truthful-attribution-gate.yml@641255c87fd063dd4c2d4d6ff1c785ba77bf2a5c # v0.0.0-main.641255c8
     with:
       mode: warn
-      ref: 8eede1022e835997d94974e4bd6205daf72131a2
+      ref: 641255c87fd063dd4c2d4d6ff1c785ba77bf2a5c
