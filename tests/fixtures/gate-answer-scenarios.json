@@ -1,0 +1,360 @@
+[
+  {
+    "name": "schema review: reject",
+    "answers": [
+      "{\"decision\":\"reject\",\"note\":\"wrong pages\"}"
+    ],
+    "runs": [
+      "propose"
+    ]
+  },
+  {
+    "name": "schema review: revise, then reject",
+    "answers": [
+      "{\"decision\":\"revise\",\"note\":\"use the team page\"}",
+      "{\"decision\":\"reject\"}"
+    ],
+    "runs": [
+      "propose",
+      "propose"
+    ],
+    "note": {
+      "step": "propose",
+      "call": 1,
+      "input": "reviewAnswer",
+      "contains": "use the team page"
+    }
+  },
+  {
+    "name": "schema review: revise, then approve both",
+    "answers": [
+      "{\"decision\":\"revise\",\"note\":\"use the team page\"}",
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"approve\"}"
+    ],
+    "runs": [
+      "propose",
+      "propose",
+      "collect",
+      "create"
+    ],
+    "note": {
+      "step": "propose",
+      "call": 1,
+      "input": "reviewAnswer",
+      "contains": "use the team page"
+    }
+  },
+  {
+    "name": "list review: reject",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"reject\",\"note\":\"no\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ]
+  },
+  {
+    "name": "list review: revise, then reject",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"revise\",\"note\":\"drop row 1\"}",
+      "{\"decision\":\"reject\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "collect"
+    ],
+    "note": {
+      "step": "collect",
+      "call": 1,
+      "input": "reviewAnswer",
+      "contains": "drop row 1"
+    }
+  },
+  {
+    "name": "both reviews: approve",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"approve\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ]
+  },
+  {
+    "name": "both reviews: the screens' approve answers",
+    "answers": [
+      "{\"decision\":\"approve\",\"instructions\":\"i\",\"outputSchema\":{\"type\":\"object\",\"properties\":{\"approved\":{\"type\":\"boolean\"}}},\"seedUrls\":[\"https://example.test/a\"]}",
+      "{\"decision\":\"approve\",\"listName\":\"CTOs\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ]
+  },
+  {
+    "name": "both reviews: the host's bare Continue",
+    "answers": [
+      "[Approved by operator]",
+      "[Approved by operator]"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ]
+  },
+  {
+    "name": "schema review: the host's refusal marker",
+    "answers": [
+      "[Rejected by operator]"
+    ],
+    "runs": [
+      "propose"
+    ]
+  },
+  {
+    "name": "schema review: the legacy refusal",
+    "answers": [
+      "{\"approved\":false}"
+    ],
+    "runs": [
+      "propose"
+    ]
+  },
+  {
+    "name": "schema review: reject in the attachment envelope",
+    "answers": [
+      "{\"text\":\"{\\\"decision\\\":\\\"reject\\\"}\",\"attachments\":[]}"
+    ],
+    "runs": [
+      "propose"
+    ]
+  },
+  {
+    "name": "schema review: revise in the attachment envelope, then reject",
+    "answers": [
+      "{\"text\":\"{\\\"decision\\\":\\\"revise\\\",\\\"note\\\":\\\"more\\\"}\",\"attachments\":[]}",
+      "{\"decision\":\"reject\"}"
+    ],
+    "runs": [
+      "propose",
+      "propose"
+    ]
+  },
+  {
+    "name": "both reviews: approve in the attachment envelope",
+    "answers": [
+      "{\"text\":\"{\\\"decision\\\":\\\"approve\\\"}\",\"attachments\":[]}",
+      "{\"text\":\"{\\\"decision\\\":\\\"approve\\\",\\\"listName\\\":\\\"CTOs\\\"}\",\"attachments\":[]}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ]
+  },
+  {
+    "name": "schema review: reject written with spaces and line breaks",
+    "answers": [
+      "{\n  \"decision\": \"reject\",\n  \"note\": \"x\"\n}"
+    ],
+    "runs": [
+      "propose"
+    ]
+  },
+  {
+    "name": "schema review: decision cancel",
+    "answers": [
+      "{\"decision\":\"cancel\"}"
+    ],
+    "runs": [
+      "propose"
+    ]
+  },
+  {
+    "name": "list review: decision cancel",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"cancel\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ]
+  },
+  {
+    "name": "list review: decision Reject (capital R)",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"Reject\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ]
+  },
+  {
+    "name": "list review: decision Approve (capital A)",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"Approve\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ]
+  },
+  {
+    "name": "list review: decision null",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":null}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ]
+  },
+  {
+    "name": "list review: decision empty",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ]
+  },
+  {
+    "name": "list review: a no-break space in the value",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"reject \"}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ]
+  },
+  {
+    "name": "list review: approve with a no-break space in the value",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"approve \"}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ]
+  },
+  {
+    "name": "list review: a no-break space in the key",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision \":\"approve\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ]
+  },
+  {
+    "name": "list review: an HTML-escaped reject",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{&quot;decision&quot;:&quot;reject&quot;}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ]
+  },
+  {
+    "name": "list review: an HTML-escaped approve",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{&#34;decision&#34;:&#34;approve&#34;}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ]
+  },
+  {
+    "name": "list review: two decision fields that disagree",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"approve\",\"meta\":{\"decision\":\"reject\"}}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ]
+  },
+  {
+    "name": "list review: decision cancel in the attachment envelope",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"text\":\"{\\\"decision\\\":\\\"cancel\\\"}\",\"attachments\":[]}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ]
+  },
+  {
+    "name": "list review: approve with a note that quotes a reject",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"approve\",\"note\":\"earlier I wrote \\\"decision\\\":\\\"reject\\\"\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ]
+  },
+  {
+    "name": "list review: reject with a note that quotes an approve",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"reject\",\"note\":\"not \\\"decision\\\":\\\"approve\\\"\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ]
+  },
+  {
+    "name": "list review: approve in the envelope with a note that quotes a reject",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"text\":\"{\\\"decision\\\":\\\"approve\\\",\\\"note\\\":\\\"earlier I wrote \\\\\\\"decision\\\\\\\":\\\\\\\"reject\\\\\\\"\\\"}\",\"attachments\":[]}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ]
+  },
+  {
+    "name": "list review: a note that quotes an approve, and no decision field",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"note\":\"next time \\\"decision\\\":\\\"approve\\\"\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ]
+  }
+]

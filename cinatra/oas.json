@@ -109,6 +109,12 @@
       "$component_ref": "schema_gate"
     },
     {
+      "$component_ref": "schema_decision_plain"
+    },
+    {
+      "$component_ref": "schema_decision_wrapped"
+    },
+    {
       "$component_ref": "schema_decision"
     },
     {
@@ -122,6 +128,12 @@
     },
     {
       "$component_ref": "list_gate"
+    },
+    {
+      "$component_ref": "list_decision_plain"
+    },
+    {
+      "$component_ref": "list_decision_wrapped"
     },
     {
       "$component_ref": "list_decision"
@@ -165,9 +177,29 @@
     },
     {
       "component_type": "ControlFlowEdge",
-      "name": "schema_gate_to_schema_decision",
+      "name": "schema_gate_to_schema_decision_plain",
       "from_node": {
         "$component_ref": "schema_gate"
+      },
+      "to_node": {
+        "$component_ref": "schema_decision_plain"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "schema_decision_plain_to_schema_decision_wrapped",
+      "from_node": {
+        "$component_ref": "schema_decision_plain"
+      },
+      "to_node": {
+        "$component_ref": "schema_decision_wrapped"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "schema_decision_wrapped_to_schema_decision",
+      "from_node": {
+        "$component_ref": "schema_decision_wrapped"
       },
       "to_node": {
         "$component_ref": "schema_decision"
@@ -249,9 +281,29 @@
     },
     {
       "component_type": "ControlFlowEdge",
-      "name": "list_gate_to_list_decision",
+      "name": "list_gate_to_list_decision_plain",
       "from_node": {
         "$component_ref": "list_gate"
+      },
+      "to_node": {
+        "$component_ref": "list_decision_plain"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "list_decision_plain_to_list_decision_wrapped",
+      "from_node": {
+        "$component_ref": "list_decision_plain"
+      },
+      "to_node": {
+        "$component_ref": "list_decision_wrapped"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "list_decision_wrapped_to_list_decision",
+      "from_node": {
+        "$component_ref": "list_decision_wrapped"
       },
       "to_node": {
         "$component_ref": "list_decision"
@@ -741,6 +793,54 @@
     },
     {
       "component_type": "DataFlowEdge",
+      "name": "schema_gate_userResponse_to_schema_decision_plain_text",
+      "source_node": {
+        "$component_ref": "schema_gate"
+      },
+      "source_output": "userResponse",
+      "destination_node": {
+        "$component_ref": "schema_decision_plain"
+      },
+      "destination_input": "text"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "schema_gate_userResponse_to_schema_decision_wrapped_text",
+      "source_node": {
+        "$component_ref": "schema_gate"
+      },
+      "source_output": "userResponse",
+      "destination_node": {
+        "$component_ref": "schema_decision_wrapped"
+      },
+      "destination_input": "text"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "schema_decision_plain_output_to_schema_decision_plain",
+      "source_node": {
+        "$component_ref": "schema_decision_plain"
+      },
+      "source_output": "output",
+      "destination_node": {
+        "$component_ref": "schema_decision"
+      },
+      "destination_input": "plain"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "schema_decision_wrapped_output_to_schema_decision_wrapped",
+      "source_node": {
+        "$component_ref": "schema_decision_wrapped"
+      },
+      "source_output": "output",
+      "destination_node": {
+        "$component_ref": "schema_decision"
+      },
+      "destination_input": "wrapped"
+    },
+    {
+      "component_type": "DataFlowEdge",
       "name": "schema_decision_output_to_schema_branch_decision",
       "source_node": {
         "$component_ref": "schema_decision"
@@ -774,6 +874,54 @@
         "$component_ref": "list_decision"
       },
       "destination_input": "answer"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "list_gate_userResponse_to_list_decision_plain_text",
+      "source_node": {
+        "$component_ref": "list_gate"
+      },
+      "source_output": "userResponse",
+      "destination_node": {
+        "$component_ref": "list_decision_plain"
+      },
+      "destination_input": "text"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "list_gate_userResponse_to_list_decision_wrapped_text",
+      "source_node": {
+        "$component_ref": "list_gate"
+      },
+      "source_output": "userResponse",
+      "destination_node": {
+        "$component_ref": "list_decision_wrapped"
+      },
+      "destination_input": "text"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "list_decision_plain_output_to_list_decision_plain",
+      "source_node": {
+        "$component_ref": "list_decision_plain"
+      },
+      "source_output": "output",
+      "destination_node": {
+        "$component_ref": "list_decision"
+      },
+      "destination_input": "plain"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "list_decision_wrapped_output_to_list_decision_wrapped",
+      "source_node": {
+        "$component_ref": "list_decision_wrapped"
+      },
+      "source_output": "output",
+      "destination_node": {
+        "$component_ref": "list_decision"
+      },
+      "destination_input": "wrapped"
     },
     {
       "component_type": "DataFlowEdge",
@@ -1119,6 +1267,76 @@
         }
       ]
     },
+    "schema_decision_plain": {
+      "component_type": "PluginRegexNode",
+      "id": "schema_decision_plain",
+      "name": "Find the decision field in the schema review answer",
+      "metadata": {
+        "cinatra": {
+          "purpose": "find-the-decision-field-of-schema_gate",
+          "description": "Finds the value of every \"decision\" field of the answer given at schema_gate, when the answer is the JSON that the review screen sends."
+        }
+      },
+      "inputs": [
+        {
+          "title": "text",
+          "type": "string"
+        }
+      ],
+      "outputs": [
+        {
+          "title": "output",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ],
+      "branches": [
+        "next"
+      ],
+      "input_mapping": {},
+      "output_mapping": {},
+      "regex_pattern": "(?<!\\\\)\"decision\"[ \\t\\r\\n]*:[ \\t\\r\\n]*\"([^\"\\\\]*)\"",
+      "return_first_match_only": false,
+      "component_plugin_name": "NodesPlugin",
+      "component_plugin_version": "26.1.0"
+    },
+    "schema_decision_wrapped": {
+      "component_type": "PluginRegexNode",
+      "id": "schema_decision_wrapped",
+      "name": "Find the decision field in the schema review answer inside the attachment envelope",
+      "metadata": {
+        "cinatra": {
+          "purpose": "find-the-decision-field-of-schema_gate",
+          "description": "Finds the value of every \"decision\" field of the answer given at schema_gate, when the host sent that JSON as the text of the attachment envelope."
+        }
+      },
+      "inputs": [
+        {
+          "title": "text",
+          "type": "string"
+        }
+      ],
+      "outputs": [
+        {
+          "title": "output",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ],
+      "branches": [
+        "next"
+      ],
+      "input_mapping": {},
+      "output_mapping": {},
+      "regex_pattern": "(?<!\\\\)\\\\\"decision\\\\\"(?:[ \\t\\r\\n]|\\\\[nrt])*:(?:[ \\t\\r\\n]|\\\\[nrt])*\\\\\"([^\"\\\\]*)\\\\\"",
+      "return_first_match_only": false,
+      "component_plugin_name": "NodesPlugin",
+      "component_plugin_version": "26.1.0"
+    },
     "schema_decision": {
       "component_type": "PluginTemplateNode",
       "id": "schema_decision",
@@ -1126,13 +1344,27 @@
       "metadata": {
         "cinatra": {
           "purpose": "read-the-decision-of-schema_gate",
-          "description": "Reads the decision from the answer given at schema_gate: reject, revise or approve. The decision field wins; a refusal sent without one is a reject; any other answer approves."
+          "description": "Reads the decision from the \"decision\" field of the answer given at schema_gate: approve, revise or reject. A decision field with any other value, or two decision fields that disagree, read as unknown, and the run ends as on a reject. An answer without a decision field is a reject when it is the host's refusal marker or {\"approved\": false}, and an approve otherwise (the host's bare Continue)."
         }
       },
       "inputs": [
         {
           "title": "answer",
           "type": "string"
+        },
+        {
+          "title": "plain",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "title": "wrapped",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       ],
       "outputs": [
@@ -1146,7 +1378,7 @@
       ],
       "input_mapping": {},
       "output_mapping": {},
-      "template": "{%- set a = answer | string | replace(' ', '') | replace('\\n', '') | replace('\\r', '') | replace('\\t', '') | replace('\\\\', '') -%}{%- if '\"decision\":\"reject\"' in a -%}reject{%- elif '\"decision\":\"revise\"' in a -%}revise{%- elif '\"decision\":\"approve\"' in a -%}approve{%- elif '\"approved\":false' in a or '[Rejectedbyoperator]' in a -%}reject{%- else -%}approve{%- endif -%}",
+      "template": "{%- set a = answer | string | lower | replace(' ', '') | replace('\\n', '') | replace('\\r', '') | replace('\\t', '') | replace('\\u00a0', '') | replace('\\\\', '') -%}{%- set found = (wrapped if (a | truncate(8, true, '', 0)) == '{\"text\":' else plain) | unique(true) | list -%}{%- if found | length == 1 and found | first == 'approve' -%}approve{%- elif found | length == 1 and found | first == 'revise' -%}revise{%- elif found | length == 1 and found | first == 'reject' -%}reject{%- elif found | length > 0 or 'decision\"' in a or 'decision&quot;' in a or 'decision&#34;' in a or 'decision&#x22;' in a -%}unknown{%- elif '\"approved\":false' in a or '[rejectedbyoperator]' in a -%}reject{%- else -%}approve{%- endif -%}",
       "component_plugin_name": "NodesPlugin",
       "component_plugin_version": "26.1.0"
     },
@@ -1157,7 +1389,7 @@
       "metadata": {
         "cinatra": {
           "purpose": "route-the-run-on-the-decision-of-schema_gate",
-          "description": "approve continues, revise returns the run to the step that proposes the values, reject ends the run; a decision this step does not know goes where reject goes."
+          "description": "approve continues, revise returns the run to propose, reject ends the run; any other decision (unknown) goes where reject goes."
         }
       },
       "inputs": [
@@ -1323,7 +1555,7 @@
           "renderer": "@cinatra-ai/list-curator-agent:final-list-review",
           "a2uiSurfaceId": "list-curator:final-list-review:input",
           "autoSkipWhenInputsPresent": false,
-          "description": "This is the list that will be created and these are the members that will be added to it. The list is written to the CRM only when you approve: a reject ends the run, and a revise sends the members back to be collected again.",
+          "description": "This is the list that will be created and these are the members that will be added to it. The list is created in the CRM only after you approve it here; a reject ends the run and no list is created.",
           "inputMessageSchema": {
             "type": "object",
             "x-renderer": "@cinatra-ai/list-curator-agent:final-list-review",
@@ -1418,6 +1650,76 @@
         }
       ]
     },
+    "list_decision_plain": {
+      "component_type": "PluginRegexNode",
+      "id": "list_decision_plain",
+      "name": "Find the decision field in the list review answer",
+      "metadata": {
+        "cinatra": {
+          "purpose": "find-the-decision-field-of-list_gate",
+          "description": "Finds the value of every \"decision\" field of the answer given at list_gate, when the answer is the JSON that the review screen sends."
+        }
+      },
+      "inputs": [
+        {
+          "title": "text",
+          "type": "string"
+        }
+      ],
+      "outputs": [
+        {
+          "title": "output",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ],
+      "branches": [
+        "next"
+      ],
+      "input_mapping": {},
+      "output_mapping": {},
+      "regex_pattern": "(?<!\\\\)\"decision\"[ \\t\\r\\n]*:[ \\t\\r\\n]*\"([^\"\\\\]*)\"",
+      "return_first_match_only": false,
+      "component_plugin_name": "NodesPlugin",
+      "component_plugin_version": "26.1.0"
+    },
+    "list_decision_wrapped": {
+      "component_type": "PluginRegexNode",
+      "id": "list_decision_wrapped",
+      "name": "Find the decision field in the list review answer inside the attachment envelope",
+      "metadata": {
+        "cinatra": {
+          "purpose": "find-the-decision-field-of-list_gate",
+          "description": "Finds the value of every \"decision\" field of the answer given at list_gate, when the host sent that JSON as the text of the attachment envelope."
+        }
+      },
+      "inputs": [
+        {
+          "title": "text",
+          "type": "string"
+        }
+      ],
+      "outputs": [
+        {
+          "title": "output",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      ],
+      "branches": [
+        "next"
+      ],
+      "input_mapping": {},
+      "output_mapping": {},
+      "regex_pattern": "(?<!\\\\)\\\\\"decision\\\\\"(?:[ \\t\\r\\n]|\\\\[nrt])*:(?:[ \\t\\r\\n]|\\\\[nrt])*\\\\\"([^\"\\\\]*)\\\\\"",
+      "return_first_match_only": false,
+      "component_plugin_name": "NodesPlugin",
+      "component_plugin_version": "26.1.0"
+    },
     "list_decision": {
       "component_type": "PluginTemplateNode",
       "id": "list_decision",
@@ -1425,13 +1727,27 @@
       "metadata": {
         "cinatra": {
           "purpose": "read-the-decision-of-list_gate",
-          "description": "Reads the decision from the answer given at list_gate: reject, revise or approve. The decision field wins; a refusal sent without one is a reject; any other answer approves."
+          "description": "Reads the decision from the \"decision\" field of the answer given at list_gate: approve, revise or reject. A decision field with any other value, or two decision fields that disagree, read as unknown, and the run ends as on a reject. An answer without a decision field is a reject when it is the host's refusal marker or {\"approved\": false}, and an approve otherwise (the host's bare Continue)."
         }
       },
       "inputs": [
         {
           "title": "answer",
           "type": "string"
+        },
+        {
+          "title": "plain",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        {
+          "title": "wrapped",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       ],
       "outputs": [
@@ -1445,7 +1761,7 @@
       ],
       "input_mapping": {},
       "output_mapping": {},
-      "template": "{%- set a = answer | string | replace(' ', '') | replace('\\n', '') | replace('\\r', '') | replace('\\t', '') | replace('\\\\', '') -%}{%- if '\"decision\":\"reject\"' in a -%}reject{%- elif '\"decision\":\"revise\"' in a -%}revise{%- elif '\"decision\":\"approve\"' in a -%}approve{%- elif '\"approved\":false' in a or '[Rejectedbyoperator]' in a -%}reject{%- else -%}approve{%- endif -%}",
+      "template": "{%- set a = answer | string | lower | replace(' ', '') | replace('\\n', '') | replace('\\r', '') | replace('\\t', '') | replace('\\u00a0', '') | replace('\\\\', '') -%}{%- set found = (wrapped if (a | truncate(8, true, '', 0)) == '{\"text\":' else plain) | unique(true) | list -%}{%- if found | length == 1 and found | first == 'approve' -%}approve{%- elif found | length == 1 and found | first == 'revise' -%}revise{%- elif found | length == 1 and found | first == 'reject' -%}reject{%- elif found | length > 0 or 'decision\"' in a or 'decision&quot;' in a or 'decision&#34;' in a or 'decision&#x22;' in a -%}unknown{%- elif '\"approved\":false' in a or '[rejectedbyoperator]' in a -%}reject{%- else -%}approve{%- endif -%}",
       "component_plugin_name": "NodesPlugin",
       "component_plugin_version": "26.1.0"
     },
@@ -1456,7 +1772,7 @@
       "metadata": {
         "cinatra": {
           "purpose": "route-the-run-on-the-decision-of-list_gate",
-          "description": "approve continues, revise returns the run to the step that proposes the values, reject ends the run; a decision this step does not know goes where reject goes."
+          "description": "approve continues, revise returns the run to collect, reject ends the run; any other decision (unknown) goes where reject goes."
         }
       },
       "inputs": [

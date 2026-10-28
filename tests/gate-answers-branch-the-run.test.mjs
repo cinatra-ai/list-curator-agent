@@ -95,8 +95,17 @@ for (const gate of GATES) {
       const node = review(gate.suffix);
       const found = branchOf(node.id);
       expect(found, `no BranchingNode routes the run on the ${gate.name}'s answer`).not.toBeNull();
-      const outgoing = control.filter((e) => e.from_node.$component_ref === node.id);
-      expect(outgoing.map((e) => e.to_node.$component_ref)).toEqual([found.reader.id]);
+      // Between the review and the decision step run only the regex steps
+      // that find the decision field in the same answer.
+      let step = node.id;
+      for (let hops = 0; step !== found.reader.id; hops += 1) {
+        const outgoing = control.filter((e) => e.from_node.$component_ref === step);
+        expect(outgoing, `${step} has one way on`).toHaveLength(1);
+        step = outgoing[0].to_node.$component_ref;
+        if (step === found.reader.id) break;
+        expect(refs[step].component_type, `${step} between the review and its decision step`).toBe("PluginRegexNode");
+        expect(hops).toBeLessThan(4);
+      }
       expect(control.some((e) => e.from_node.$component_ref === found.reader.id && e.to_node.$component_ref === found.branch.id)).toBe(true);
       for (const decision of ["approve", "revise", "reject"]) {
         expect(routed(found.branch, decision), `"${decision}" has no branch of its own`).toBe(decision);
@@ -152,19 +161,50 @@ for (const gate of GATES) {
   });
 }
 
-describe("the decision step reads every answer shape the host sends", () => {
-  it("reads the decision field, the legacy refusal and the host's refusal marker", () => {
+describe("the decision step reads the decision field of the answer", () => {
+  // What each answer does to the run is driven step by step in
+  // gate-answers-drive-the-run.test.mjs; these cases name where it is read.
+  it("finds the decision field with regex steps that read the same answer", () => {
+    for (const gate of GATES) {
+      const node = review(gate.suffix);
+      const { reader } = branchOf(node.id);
+      expect(reader.component_type).toBe("PluginTemplateNode");
+      for (const input of ["plain", "wrapped"]) {
+        const edge = data.find((e) => e.destination_node.$component_ref === reader.id && e.destination_input === input);
+        expect(edge, `the ${gate.name}'s decision step has no ${input} input`).toBeTruthy();
+        const finder = refs[edge.source_node.$component_ref];
+        expect(finder.component_type).toBe("PluginRegexNode");
+        expect(finder.return_first_match_only).toBe(false);
+        expect(finder.regex_pattern).toContain(input === "plain" ? '"decision"' : String.raw`\\"decision\\"`);
+        expect(
+          data.some(
+            (e) =>
+              e.source_node.$component_ref === node.id &&
+              e.source_output === "userResponse" &&
+              e.destination_node.$component_ref === finder.id &&
+              e.destination_input === "text",
+          ),
+          `${finder.id} does not read the ${gate.name}'s answer`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("reads the legacy refusal and the host's refusal marker when no decision field is sent", () => {
     for (const gate of GATES) {
       const { reader } = branchOf(review(gate.suffix).id);
-      expect(reader.component_type).toBe("PluginTemplateNode");
       const template = String(reader.template);
-      for (const literal of ['"decision":"reject"', '"decision":"revise"', '"approved":false', "[Rejectedbyoperator]"]) {
+      for (const literal of ['"approved":false', "[rejectedbyoperator]"]) {
         expect(template, `the ${gate.name}'s decision step does not read ${literal}`).toContain(literal);
       }
-      // Spaces and escaping backslashes are removed before the comparison, so
-      // an answer wrapped in the attachment envelope reads the same.
-      expect(template).toMatch(/replace\(' ', ''\)/);
-      expect(template).toMatch(/replace\('\\\\', ''\)/);
+    }
+  });
+
+  it("gives any other decision a value the branch does not map", () => {
+    for (const gate of GATES) {
+      const { reader, branch } = branchOf(review(gate.suffix).id);
+      expect(String(reader.template)).toContain("-%}unknown{%-");
+      expect(routed(branch, "unknown")).toBe("default");
     }
   });
 });
