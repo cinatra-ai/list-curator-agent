@@ -887,11 +887,13 @@ describe("the closing message tells what happened after create", () => {
     expect(text).not.toMatch(/nothing was saved/i);
   });
 
-  it("also names the failed entries when no list came back", () => {
-    const text = closing({ listId: "", memberCount: 0, failures: [failure(0)], summary: "s" });
-    expect(text).toBe(
-      "The list was not created. Any accounts and contacts that were created while collecting the candidates stay in your CRM. s Some entries could not be collected or added: 1 of them; they are listed with the run.",
-    );
+  const STAY = "The list was not created. Any accounts and contacts that were created while collecting the candidates stay in your CRM.";
+  const ONE = "1 entry could not be collected or added; it is listed with the run.";
+  const TWO = "2 entries could not be collected or added; they are listed with the run.";
+
+  it("also names the failed entries when no list came back, in the singular for one", () => {
+    expect(closing({ listId: "", memberCount: 0, failures: [failure(0)], summary: "s" })).toBe(`${STAY} s ${ONE}`);
+    expect(closing({ listId: "", memberCount: 0, failures: [failure(0), failure(1)], summary: "s" })).toBe(`${STAY} s ${TWO}`);
   });
 
   it("says that nothing came back when the list was created and no entry was added or failed", () => {
@@ -901,16 +903,20 @@ describe("the closing message tells what happened after create", () => {
 
   it("tells a run whose every entry failed apart from one that found nothing", () => {
     const text = closing({ listId: "L1", memberCount: 0, failures: [failure(0), failure(1)], summary: "s" });
-    expect(text).toBe(
-      "The list was created, but no members were added to it: 2 entries could not be collected or added; they are listed with the run.",
-    );
+    expect(text).toBe(`The list was created, but no members were added to it: ${TWO}`);
     expect(text).not.toMatch(/nothing came back/i);
   });
 
-  it("counts the members added and the entries that failed", () => {
+  it("names a single failed entry in the singular when the list was created with no member", () => {
+    const text = closing({ listId: "L1", memberCount: 0, failures: [failure(0)], summary: "s" });
+    expect(text).toBe(`The list was created, but no members were added to it: ${ONE}`);
+  });
+
+  it("counts the members added and the entries that failed, in the singular for one", () => {
     expect(closing({ listId: "L1", memberCount: 3, failures: [], summary: "s" })).toBe("3 members were added to the list. s");
-    expect(closing({ listId: "L1", memberCount: 3, failures: [failure(3)], summary: "s" })).toBe(
-      "3 members were added to the list. s Some entries could not be collected or added: 1 of them; they are listed with the run.",
+    expect(closing({ listId: "L1", memberCount: 3, failures: [failure(3)], summary: "s" })).toBe(`3 members were added to the list. s ${ONE}`);
+    expect(closing({ listId: "L1", memberCount: 3, failures: [failure(3), failure(4)], summary: "s" })).toBe(
+      `3 members were added to the list. s ${TWO}`,
     );
   });
 });
