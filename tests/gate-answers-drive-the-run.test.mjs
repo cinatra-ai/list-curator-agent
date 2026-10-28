@@ -60,72 +60,116 @@ const scenarios = JSON.parse(
 
 // ---------------------------------------------------------------------------
 // The template reader of this trace. It reads the decision steps' templates and
-// the closing message; it is not Jinja, and what it does is listed here. A test
-// named in quotes is in "the template reader of the step trace" unless another
-// block is named.
+// the closing message; it is not Jinja. This comment lists what it reads and
+// what it refuses. After each claim in the lists below it names, in quotes, a
+// test of this file that runs that code, or says "not driven by a test" where
+// no test of this file runs it. A test named in quotes is in "the template
+// reader of the step trace" unless another block is named; "applies whitespace control, ..." is
+// "applies whitespace control, set, if, elif, else and filters", and "reads a
+// loop over a list, ..." is "reads a loop over a list, a block set, the none
+// and mapping tests and a dict entry".
 // Tags
-// - It splits text from {{ }} print tags and {% %} statement tags; a tag ends at
-//   its first closer, also inside a string literal (not driven by a test), and a
-//   {% tag closed by }} or a {{ tag closed by %} throws ("refuses a tag whose
-//   opener and closer do not pair").
-// - "-" on a print or statement tag trims the text next to it ("applies
-//   whitespace control, set, if, elif, else and filters").
-// - {# #} writes nothing and ends at the first #} ("writes nothing for a
-//   comment, also one that holds a print tag"); a comment with "-" throws
-//   ("refuses a construct it does not follow"), and so does {# or #} inside a
-//   tag ("refuses comment-looking text inside a print or statement tag").
-// Statements
-// - set NAME = expr, and if / elif / else / endif ("applies whitespace control,
-//   set, if, elif, else and filters").
-// - set NAME ... endset assigns the text its body writes, and a set inside it
-//   does not reach past endset ("keeps a set inside a block set to that
-//   block"; "reads a loop over a list, a block set, ...").
-// - for NAME in expr ... endfor runs its body for each item of a list and then
-//   gives NAME its earlier value back ("reads a loop over a list, a block set,
-//   ..."). It throws for an else, two names, an if filter, a set inside the
-//   loop, and a value that is not a list ("refuses a construct it does not
-//   follow"), and for the name loop or the word recursive (not driven by a test).
-// - true, false and none, in either case, throw as a target of set, a block set
-//   or for ("refuses a constant name as an assignment target").
-// - endset, endfor, endif and else throw unless they hold their word alone, and
-//   elif needs a test ("refuses a malformed closing tag"); a block closed by
-//   another block's closing word throws ("refuses a block whose closing
-//   statement belongs to another block"). Another statement word throws (not
-//   driven by a test).
-// Names
-// - A name is ASCII letters, digits and "_", not starting with a digit; other
-//   names throw (not driven by a test). Names are bound in a Map, so a name such as
-//   __proto__ is its own entry, and a name that is not bound throws ("binds a
-//   name in its own map, __proto__ and constructor too"; "refuses a
-//   variable that the template is not given, also when its name is inherited",
-//   in the block on own properties).
-// Expressions
-// - String literals in single or double quotes, with the escapes \\, \', \",
-//   \n, \r, \t, \uXXXX and \xXX; another escape throws (the \u escape: "applies
-//   whitespace control, ..."; the others are not driven by a test).
-// - Whole numbers; a "." throws (not driven by a test). true, false, True and
-//   False (true in "applies whitespace control, ..."; the others are not driven
+// - It splits text from {{ }} print tags and {% %} statement tags ("applies
+//   whitespace control, ...").
+// - A tag ends at its first closer, also when that closer is inside a string
+//   literal (not driven by a test).
+// - A {% tag closed by }} or a {{ tag closed by %} throws ("refuses a tag whose
+//   opener and closer do not pair"); the same with "-" on the tag (not driven
 //   by a test).
-// - ( ), list literals [a, b], x if t else y (an if without else throws), or,
-//   and, not, == != < > <= >=, in, not in (and, ==, > and in, and x if t else
-//   y, in "applies whitespace control, ..."; the others are not driven by a test).
-// - is none, is not none, is mapping and is not mapping; another test throws
-//   ("reads a loop over a list, ..."; "refuses a construct it does not follow").
-// - x[key] reads a string key that a dict holds, and throws otherwise ("reads a
-//   loop over a list, ..."; "refuses a construct it does not follow").
+// - "-" on a statement tag trims the whitespace next to it ("applies whitespace
+//   control, ..."); "-" on a print tag does the same (not driven by a test).
+// - {# #} writes nothing and ends at the first #}, also when it holds a print
+//   tag ("writes nothing for a comment, also one that holds a print tag").
+// - A comment with "-" throws ("refuses a construct it does not follow").
+// - {# or #} inside a print or statement tag throws ("refuses comment-looking
+//   text inside a print or statement tag").
+// - {{, {% or {# left in the text after the scan throws (not driven by a test).
+// Statements
+// - set NAME = expr assigns the value ("applies whitespace control, ...").
+// - if, elif, else and endif run the first arm whose test is true, else the
+//   else body ("applies whitespace control, ...").
+// - set NAME ... endset assigns the text its body writes ("reads a loop over a
+//   list, ..."), and a set inside it does not reach past endset ("keeps a set
+//   inside a block set to that block").
+// - for NAME in expr ... endfor runs its body once for each item of a list,
+//   then gives NAME its earlier value back ("reads a loop over a list, ..."),
+//   or unbinds NAME when it had no value ("binds a name in its own map,
+//   __proto__ and constructor too").
+// - for throws for an else, a target of two names, an if filter after the
+//   list, a set inside the loop and a value that is not a list ("refuses a
+//   construct it does not follow"); for the target loop and the word recursive
+//   it throws too (not driven by a test).
+// - true, false, none, True, False and None throw as the target of set, a block
+//   set or for ("refuses a constant name as an assignment target").
+// - endset, endfor, endif and else throw when the tag holds more than the word,
+//   and elif throws without a test ("refuses a malformed closing tag").
+// - A block closed by the closing word of another block throws ("refuses a
+//   block whose closing statement belongs to another block").
+// - Another statement word, a set that is neither form and a block without its
+//   closing tag throw (not driven by a test).
+// Names
+// - A name of ASCII letters, digits and "_" that does not start with a digit
+//   is read ("applies whitespace control, ..."); a name with another letter,
+//   or one that starts with a digit, throws (not driven by a test).
+// - Names are bound in a Map, so a name such as __proto__ or constructor is
+//   its own entry ("binds a name in its own map, __proto__ and constructor
+//   too": __proto__ as an input, a for target and a set target, constructor as
+//   a block-set name).
+// - A name that is not bound throws ("keeps a set inside a block set to that
+//   block"; "binds a name in its own map, __proto__ and constructor too";
+//   "refuses a variable that the template is not given, also when its name is
+//   inherited", in the block on own properties).
+// Expressions
+// - String literals in single quotes ("applies whitespace control, ...") and
+//   in double quotes (not driven by a test).
+// - The escapes \\ ("writes a string with tojson as the runtime's Jinja does",
+//   through the wrap step's template) and \uXXXX ("applies whitespace control,
+//   ..."); \', \", \n, \r, \t and \xXX (not driven by a test). Another escape,
+//   and \u or \x without its hex digits, throw (not driven by a test).
+// - Whole numbers ("applies whitespace control, ..."); a "." throws (not driven
+//   by a test).
+// - true ("applies whitespace control, ..."); True, false and False (not driven
+//   by a test).
+// - Parentheses, x if t else y, and, ==, > and in ("applies whitespace control,
+//   ...").
+// - not and != ("says that the list was not created and that records made while
+//   collecting stay, when no list came back", in "the closing message tells what
+//   happened after create").
+// - List literals [a, b], or, <, <=, >=, not in, and an if without else, which
+//   throws (not driven by a test).
+// - in finds a key of a dict ("reads a loop over a list, ...") and a substring
+//   of a string ("applies whitespace control, ..."); an item of a list (not
+//   driven by a test); in of another pair of values throws (not driven by a
+//   test).
+// - is none, is not none and is mapping ("reads a loop over a list, ..."); is
+//   not mapping (not driven by a test); another test throws ("refuses a
+//   construct it does not follow").
+// - x[key] reads a string key that a dict holds ("reads a loop over a list,
+//   ..."); a key that the dict does not hold, and an index into a list, throw
+//   ("refuses a construct it does not follow"); a key that is not a string, on
+//   a dict, throws (not driven by a test).
+// - == or != with a list, and <, >, <= or >= with a value that is not a number,
+//   throw (not driven by a test).
+// - Other text that the expression reader cannot parse throws, for example an
+//   unterminated string, a missing ) or a character it does not read (not
+//   driven by a test).
 // Filters and printing
 // - string, lower, replace, truncate(length, true, end, leeway), unique(true),
-//   list and length ("applies whitespace control, ..."), tojson of a string
-//   ("writes a string with tojson as the runtime's Jinja does"; tojson of
-//   another value throws: "refuses a construct it does not follow"), and first
-//   (not driven by a test). A filter's function gets the arguments the template
-//   gives and ignores ones it does not take, for example length(1) (not driven by
-//   a test). Another filter name throws ("refuses a filter that the trace does
-//   not follow, also when its name is inherited", in the block on own
-//   properties).
-// - A print writes a string as it is, a number in decimal and null as None
-//   ("applies whitespace control, ..."); a boolean, list or dict throws (not
-//   driven by a test).
+//   list and length ("applies whitespace control, ..."); first (not driven by a
+//   test).
+// - tojson of a string ("writes a string with tojson as the runtime's Jinja
+//   does"); tojson of another value throws ("refuses a construct it does not
+//   follow").
+// - A filter's function gets the arguments the template gives and ignores ones
+//   it does not take, for example length(1) (not driven by a test). A filter
+//   given a value or arguments it does not take throws, for example lower of a
+//   number or truncate without true (not driven by a test).
+// - Another filter name throws ("refuses a filter that the trace does not
+//   follow, also when its name is inherited", in the block on own properties).
+// - A print writes a string as it is and a number in decimal ("applies
+//   whitespace control, ..."), and null as None (not driven by a test; the
+//   string filter writes null as None in "applies whitespace control, ...");
+//   a print of a boolean, list or dict throws (not driven by a test).
 // Where a template outside the flow uses Jinja the reader does not follow, the
 // reader can read it differently from the runtime. For the flow's own closing
 // message, the PR compares the runtime's renders with these tests.
