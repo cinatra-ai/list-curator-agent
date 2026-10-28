@@ -1055,12 +1055,13 @@ describe("the template reader of the step trace", () => {
   });
 
   it("reads a name of letters, digits and underscores, bound and printed", () => {
-    // a_1 and x2_y are inputs; b_2 is a set target and i_3 a for target; each is
-    // printed or read back, so a name that held a digit or "_" and was cut short
-    // or refused would change the text or throw.
+    // a_1 and x2_y are inputs; b_2 is a set target, c_4 a block-set target and
+    // i_3 a for target; each is printed or read back, so a name that held a
+    // digit or "_" and was cut short or refused would change the text or throw.
     expect(renderTemplate("{{ a_1 }}-{{ x2_y | length }}", { a_1: "p", x2_y: ["q", "r"] })).toBe("p-2");
     expect(renderTemplate("{% set b_2 = a_1 %}{% for i_3 in x2_y %}{{ i_3 }}{% endfor %}-{{ b_2 }}", { a_1: "p", x2_y: ["q", "r"] })).toBe("qr-p");
     expect(renderTemplate("{{ x2_y }}", { x2_y: "s" })).toBe("s");
+    expect(renderTemplate("{% set c_4 %}<{{ a_1 }}>{% endset %}{{ c_4 }}", { a_1: "p" })).toBe("<p>");
   });
 
   it("writes a string with tojson as the runtime's Jinja does", () => {
