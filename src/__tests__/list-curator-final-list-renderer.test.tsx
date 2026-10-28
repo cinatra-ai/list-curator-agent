@@ -14,7 +14,8 @@
  *     decision from the answer the host sends, and a renderer-authored
  *     userResponse is that answer).
  *   - Cancel emits onChange({approved: false, userResponse}), the userResponse
- *     carrying decision "reject", so the run ends and nothing is written.
+ *     carrying decision "reject", so the run ends and creates no list. CRM
+ *     records that discovery wrote before this review may already exist.
  *   - Approve is disabled when listName is empty.
  *   - Failures section renders when failures.length > 0.
  */

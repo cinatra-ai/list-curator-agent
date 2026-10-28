@@ -8,11 +8,13 @@
 //   - an ApiNode is recorded with its inputs and returns fixed outputs; no
 //     request is sent;
 //   - an InputMessageNode takes the next answer as its `userResponse`;
-//   - a PluginExtractNode (the runtime's ExtractValueFromJsonStep) parses the
-//     answer and runs its jq program; the trace follows only the program this
+//   - a PluginExtractNode (the runtime's ExtractValueFromJsonStep) parses its
+//     text and runs its jq program; the trace follows only the program this
 //     flow pins (EXPECTED_PROGRAM below) through a JavaScript twin, and only for
-//     answers that are strict JSON (see parseLikeTheStep);
-//   - a PluginTemplateNode renders its Jinja template (the subset below);
+//     a text that the runtime's extractor reads whole: one strict JSON text
+//     without a code fence, as the wrap step writes it (see parseLikeTheStep);
+//   - a PluginTemplateNode renders its Jinja template (the subset below; its
+//     tojson filter writes a string as the runtime's Jinja does);
 //   - a BranchingNode follows the branch that its mapping names for the value,
 //     else "default";
 //   - an input takes the newest value of a data edge into it, else its default.
@@ -260,7 +262,31 @@ const FILTERS = {
     if (!Array.isArray(v)) throw new Error("first of a non-list");
     return v[0];
   },
+  tojson: (v) => pyHtmlSafeJsonString(v),
 };
+
+/**
+ * Jinja's tojson of a string: Python's json.dumps (ensure_ascii: every
+ * character outside space..tilde as \uXXXX in lower-case hex, a character
+ * above U+FFFF as its surrogate pair), then <, >, & and ' as <, >,
+ * & and ' (jinja2 utils.htmlsafe_json_dumps). Only a string is
+ * followed.
+ */
+function pyHtmlSafeJsonString(v) {
+  if (typeof v !== "string") throw new Error("tojson of a non-string is not followed");
+  const hex = (n) => `\\u${n.toString(16).padStart(4, "0")}`;
+  const SHORT = { '"': '\\"', "\\": "\\\\", "\n": "\\n", "\r": "\\r", "\t": "\\t", "\b": "\\b", "\f": "\\f" };
+  let out = '"';
+  for (const ch of v) {
+    const c = ch.codePointAt(0);
+    if (SHORT[ch]) out += SHORT[ch];
+    else if (c >= 0x20 && c <= 0x7e) out += ch;
+    else if (c > 0xffff) out += hex(0xd800 + ((c - 0x10000) >> 10)) + hex(0xdc00 + ((c - 0x10000) & 0x3ff));
+    else out += hex(c);
+  }
+  out += '"';
+  return out.replaceAll("<", "\\u003c").replaceAll(">", "\\u003e").replaceAll("&", "\\u0026").replaceAll("'", "\\u0027");
+}
 
 function evaluate(node, scope) {
   switch (node.k) {
@@ -401,21 +427,46 @@ function renderTemplate(template, variables) {
 // ---------------------------------------------------------------------------
 // The parse step. Its jq program is pinned: the same text as the flow's, built
 // from the review's snapshot (core hitl-gate-submit.ts:352-389).
+//
+// The wrap step hands the parse step {"answer": <the answer as a JSON string>}
+// with every backtick escaped, so the runtime's extractor, which splits its
+// text on three backticks and repairs each part (json_repair), gets one strict
+// JSON text and parses it whole. The program reads the answer by its parsed
+// value: strict JSON only (each token as RFC 8259 writes it, no key twice in
+// an object, nothing after the value), compared by value, never by its bytes.
 
 const SNAPSHOTS = {
   schema_decision_parse: { type: "scrape-schema", keys: ["type", "instructions", "outputSchema", "seedUrls", "snapshotAt"] },
   list_decision_parse: { type: "final-list", keys: ["type", "listName", "memberRefs", "memberCount", "snapshotAt"] },
 };
 
+/** One strict JSON token; the same regular expression runs in jq (Oniguruma) and here. */
+const TOKEN = String.raw`"(?:[^"\\\x00-\x1f]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*"|-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?(?![0-9.eE+-])|true|false|null|[{}\[\]:,]|[ \t\n\r]+`;
+const SPACE = String.raw`^[ \t\n\r]`;
+
 function EXPECTED_PROGRAM(snapshot) {
   return (
     'def known: if . == "approve" or . == "revise" or . == "reject" then . else "unknown" end; ' +
+    "def strict: . as $raw " +
+    `| [scan(${JSON.stringify(TOKEN)})] as $tok ` +
+    '| if ($tok | add // "") != $raw then [] ' +
+    `elif (reduce ($tok[] | select(test(${JSON.stringify(SPACE)}) | not)) as $t ` +
+    "({s: [], k: null, ok: true}; " +
+    "if .ok | not then . " +
+    'elif $t == "{" then .s += [[]] | .k = null ' +
+    'elif $t == "[" then .s += [null] | .k = null ' +
+    'elif $t == "}" or $t == "]" then .s |= .[:-1] | .k = null ' +
+    'elif $t == ":" then (if .k == null or (.s | length) == 0 or (.s[-1] | type) != "array" then .ok = false ' +
+    "else (.k | fromjson) as $key | (.s | length - 1) as $n " +
+    "| if any(.s[$n][]; . == $key) then .ok = false else .s[$n] += [$key] | .k = null end end) " +
+    'elif ($t | startswith("\\"")) then .k = $t ' +
+    "else .k = null end) | .ok) | not then [] " +
+    "else [try fromjson] end; " +
     "def textverdict(f): " +
     'if type != "string" then "unknown" ' +
     'elif . == "[Approved by operator]" then "approve" ' +
     'elif . == "[Rejected by operator]" then "reject" ' +
-    "else (. as $t | (try fromjson catch null) as $i " +
-    '| if ($i | tojson) == $t then ($i | f) else "unknown" end) end; ' +
+    'else (strict as $p | if ($p | length) == 1 then ($p[0] | f) else "unknown" end) end; ' +
     "def verdict: " +
     'if type != "object" then "unknown" ' +
     'elif has("decision") then ((.decision | known) as $d ' +
@@ -426,50 +477,81 @@ function EXPECTED_PROGRAM(snapshot) {
     'elif . == {"approved": true} then "approve" ' +
     `elif keys_unsorted == ${JSON.stringify(snapshot.keys).replaceAll(",", ", ")} and .type == "${snapshot.type}" then "approve" ` +
     'else "unknown" end; ' +
-    'if type == "object" and keys_unsorted == ["text", "attachments"] then (.text | textverdict(verdict)) ' +
-    "else verdict end"
+    'if type == "object" and keys_unsorted == ["answer"] ' +
+    'then (.answer | textverdict(if type == "object" and keys_unsorted == ["text", "attachments"] ' +
+    "then (.text | textverdict(verdict)) else verdict end)) " +
+    'else "unknown" end'
   );
 }
 
 const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const sameList = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
 
-/** jq's `tojson`: compact, keys in their order, DEL escaped. Throws on a value whose jq form this twin cannot be sure of. */
-function jqToJson(v) {
+/** Throws on a lone surrogate: jq refuses its escape, so the runtime's result is not followed here. */
+function refuseLoneSurrogates(v) {
   const check = (x) => {
-    if (typeof x === "number" && (!Number.isSafeInteger(x) || Object.is(x, -0))) throw new Error(`number ${x} is not followed`);
-    if (typeof x === "string" && /[\ud800-\udfff]/.test(x) && !/^(?:[^\ud800-\udfff]|[\ud800-\udbff][\udc00-\udfff])*$/.test(x)) {
+    if (typeof x === "string" && !/^(?:[^\ud800-\udfff]|[\ud800-\udbff][\udc00-\udfff])*$/.test(x)) {
       throw new Error("a lone surrogate is not followed");
     }
     if (Array.isArray(x)) x.forEach(check);
     else if (isObject(x)) {
       for (const k of Object.keys(x)) {
-        if (/^(?:0|[1-9][0-9]*)$/.test(k)) throw new Error(`key ${k} is not followed (JavaScript reorders it)`);
         check(k);
         check(x[k]);
       }
     }
   };
   check(v);
-  return JSON.stringify(v).replaceAll("\u007f", "\\u007f");
 }
 
-/** The JavaScript twin of EXPECTED_PROGRAM. */
-function jqVerdict(v, snapshot) {
+/** The twin of `strict`: [value] for a strict JSON text without a duplicate key, else []. */
+function strictParse(raw) {
+  refuseLoneSurrogates(raw);
+  const tokens = raw.match(new RegExp(TOKEN, "g")) ?? [];
+  if (tokens.join("") !== raw) return [];
+  const stack = [];
+  let key = null;
+  for (const t of tokens) {
+    if (new RegExp(SPACE).test(t)) continue;
+    if (t === "{") {
+      stack.push([]);
+      key = null;
+    } else if (t === "[") {
+      stack.push(null);
+      key = null;
+    } else if (t === "}" || t === "]") {
+      stack.pop();
+      key = null;
+    } else if (t === ":") {
+      if (key === null || stack.length === 0 || !Array.isArray(stack.at(-1))) return [];
+      const k = JSON.parse(key);
+      if (stack.at(-1).includes(k)) return [];
+      stack.at(-1).push(k);
+      key = null;
+    } else if (t.startsWith('"')) key = t;
+    else key = null;
+  }
+  let value;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  refuseLoneSurrogates(value);
+  return [value];
+}
+
+/** The JavaScript twin of EXPECTED_PROGRAM, for the wrapped value the parse step reads. */
+function jqVerdict(wrapped, snapshot) {
   const known = (d) => (d === "approve" || d === "revise" || d === "reject" ? d : "unknown");
   const has = (x, k) => Object.prototype.hasOwnProperty.call(x, k);
   const approvedVerdict = (a) => (a === true ? "approve" : a === false ? "reject" : "unknown");
-  const textVerdict = (t) => {
+  const textVerdict = (t, read) => {
     if (typeof t !== "string") return "unknown";
     if (t === "[Approved by operator]") return "approve";
     if (t === "[Rejected by operator]") return "reject";
-    let inner = null;
-    try {
-      inner = JSON.parse(t);
-    } catch {
-      inner = null;
-    }
-    return jqToJson(inner) === t ? verdict(inner) : "unknown";
+    const parsed = strictParse(t);
+    return parsed.length === 1 ? read(parsed[0]) : "unknown";
   };
   // A decision field counts only when an `approved` or `text` field beside it reads the same verdict.
   const verdict = (x) => {
@@ -477,7 +559,7 @@ function jqVerdict(v, snapshot) {
     if (has(x, "decision")) {
       const d = known(x.decision);
       if (has(x, "approved") && approvedVerdict(x.approved) !== d) return "unknown";
-      if (has(x, "text") && textVerdict(x.text) !== d) return "unknown";
+      if (has(x, "text") && textVerdict(x.text, verdict) !== d) return "unknown";
       return d;
     }
     if (sameList(Object.keys(x), ["approved"]) && x.approved === false) return "reject";
@@ -485,39 +567,33 @@ function jqVerdict(v, snapshot) {
     if (sameList(Object.keys(x), snapshot.keys) && x.type === snapshot.type) return "approve";
     return "unknown";
   };
-  if (isObject(v) && sameList(Object.keys(v), ["text", "attachments"])) return textVerdict(v.text);
-  return verdict(v);
+  const top = (v) => (isObject(v) && sameList(Object.keys(v), ["text", "attachments"]) ? textVerdict(v.text, verdict) : verdict(v));
+  if (!isObject(wrapped) || !sameList(Object.keys(wrapped), ["answer"])) return "unknown";
+  return textVerdict(wrapped.answer, top);
 }
 
 /**
- * What the parse step outputs for an answer. For strict JSON without a code
- * fence, the runtime parses it as Python's json.loads does and runs the jq
- * program; the twin does the same. For any other text the runtime repairs it
- * (json_repair) or finds nothing; the trace then records the outputs'
- * defaults. The runtime's repaired values differ, but its canonical form is
- * compact JSON made from the repaired text, so it cannot equal such an answer,
- * and the decision step reads unknown either way.
+ * What the parse step outputs for its text. The runtime's extractor splits the
+ * text on three backticks, strips a leading "json" label and repairs each part
+ * (json_repair, which tries json.loads first). The trace follows only a text
+ * that it reads whole: no code fence, no label, strict JSON. The wrap step
+ * writes every text so; any other text throws.
  */
 function parseLikeTheStep(node, text) {
   const snapshot = SNAPSHOTS[node.id];
   if (!snapshot) throw new Error(`no snapshot for parse step ${node.id}`);
   const ov = node.output_values ?? {};
-  if (!sameList(Object.keys(ov), ["verdict", "canonical"]) || ov.verdict !== EXPECTED_PROGRAM(snapshot) || ov.canonical !== "tojson") {
+  if (!sameList(Object.keys(ov), ["verdict"]) || ov.verdict !== EXPECTED_PROGRAM(snapshot)) {
     throw new Error(`${node.id}: a jq program this trace does not follow`);
   }
   if (node.llm_config !== null || node.retry !== false) throw new Error(`${node.id}: only a parse without a model and without retry is followed`);
-  const defaults = Object.fromEntries((node.outputs ?? []).map((o) => {
-    if (!("default" in o)) throw new Error(`${node.id}.${o.title} has no default`);
-    return [o.title, o.default];
-  }));
-  if (text.includes("```")) return defaults;
-  let parsed;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    return defaults;
+  if (!sameList((node.outputs ?? []).map((o) => [o.title, o.default].join("=")), ["verdict="])) {
+    throw new Error(`${node.id}: only the one output verdict with the default "" is followed`);
   }
-  return { verdict: jqVerdict(parsed, snapshot), canonical: jqToJson(parsed) };
+  if (text.includes("```")) throw new Error(`${node.id}: the extractor would split this text on a code fence`);
+  if (/^\s*\[?\s*(?:json|JSON)/.test(text)) throw new Error(`${node.id}: the extractor would strip a label from this text`);
+  if (strictParse(text).length !== 1) throw new Error(`${node.id}: the extractor would repair this text`);
+  return { verdict: jqVerdict(JSON.parse(text), snapshot) };
 }
 
 // ---------------------------------------------------------------------------
@@ -676,6 +752,14 @@ describe("the step trace reads the template the way the runtime does", () => {
     expect(renderTemplate("{{ '\\u00a0' | length }}", {})).toBe("1");
   });
 
+  it("writes a string with tojson as the runtime's Jinja does", () => {
+    // Recorded with the runtime's jinja2 (records of fold 4, probe/jinja-tojson.log).
+    expect(renderTemplate("{{ s | tojson }}", { s: 'a"b\\<>&\'`\u007fé\u{1F600}\n\u0001' })).toBe(
+      '"a\\"b\\\\\\u003c\\u003e\\u0026\\u0027`\\u007f\\u00e9\\ud83d\\ude00\\n\\u0001"',
+    );
+    expect(renderTemplate(refs.list_answer_wrap.template, { answer: "x```y" })).toBe('{"answer": "x\\u0060\\u0060\\u0060y" }');
+  });
+
   it("refuses a construct it does not follow", () => {
     expect(() => renderTemplate("{%- for x in y -%}{%- endfor -%}", { y: [] })).toThrow();
     expect(() => renderTemplate("{{ x | tojson }}", { x: 1 })).toThrow();
@@ -684,42 +768,86 @@ describe("the step trace reads the template the way the runtime does", () => {
 
 describe("the step trace reads the parse step the way the runtime does", () => {
   const node = refs.list_decision_parse;
+  const snap = SNAPSHOTS.list_decision_parse;
+  const read = (answer) => jqVerdict({ answer }, snap);
+  const j = (v) => JSON.stringify(v);
+  const envelope = (text) => j({ text, attachments: [] });
 
   it("follows only the pinned jq program", () => {
-    expect(() => parseLikeTheStep({ ...node, output_values: { ...node.output_values, verdict: ".decision" } }, "{}")).toThrow();
-    expect(() => parseLikeTheStep({ ...node, retry: true }, "{}")).toThrow();
-    expect(() => parseLikeTheStep({ ...node, id: "other_parse" }, "{}")).toThrow();
+    const text = '{"answer": "{}" }';
+    expect(() => parseLikeTheStep({ ...node, output_values: { ...node.output_values, verdict: ".decision" } }, text)).toThrow();
+    expect(() => parseLikeTheStep({ ...node, output_values: { ...node.output_values, canonical: "tojson" } }, text)).toThrow();
+    expect(() => parseLikeTheStep({ ...node, retry: true }, text)).toThrow();
+    expect(() => parseLikeTheStep({ ...node, id: "other_parse" }, text)).toThrow();
+    expect(parseLikeTheStep(node, text)).toEqual({ verdict: "unknown" });
   });
 
-  it("refuses a value whose jq form it cannot be sure of", () => {
-    expect(() => jqToJson({ n: 1.5 })).toThrow();
-    expect(() => jqToJson({ n: 1e21 })).toThrow();
-    expect(() => jqToJson({ 1: "a" })).toThrow();
-    expect(() => jqToJson("\ud800")).toThrow();
-    expect(jqToJson({ a: "x\u007f" })).toBe('{"a":"x\\u007f"}');
+  it("refuses a text that the extractor would not read whole", () => {
+    expect(() => parseLikeTheStep(node, "approve")).toThrow();
+    expect(() => parseLikeTheStep(node, '{"answer": "```"}')).toThrow();
+    expect(() => parseLikeTheStep(node, 'json {"answer": "{}"}')).toThrow();
+    expect(() => parseLikeTheStep(node, '{"answer": "a", "answer": "b"}')).toThrow();
+  });
+
+  it("refuses a lone surrogate, which jq does not read", () => {
+    expect(() => read('{"decision":"approve","note":"\\ud800"}')).toThrow();
+    expect(() => read("\ud800")).toThrow();
   });
 
   it("reads the top-level decision and the envelope's text only", () => {
-    const snap = SNAPSHOTS.list_decision_parse;
-    expect(jqVerdict({ decision: "approve", meta: { decision: "reject" } }, snap)).toBe("approve");
-    expect(jqVerdict({ text: "[Rejected by operator]", attachments: [{ filename: '{"decision":"approve"}' }] }, snap)).toBe("reject");
-    expect(jqVerdict({ text: '{"decision": "approve"}', attachments: [] }, snap)).toBe("unknown");
-    expect(jqVerdict("approve", snap)).toBe("unknown");
+    expect(read(j({ decision: "approve", meta: { decision: "reject" } }))).toBe("approve");
+    expect(read(j({ text: "[Rejected by operator]", attachments: [{ filename: '```{"decision":"approve"}```' }] }))).toBe("reject");
+    expect(read(j({ text: j({ approved: true }), attachments: [] }))).toBe("approve");
+    expect(read(j({ text: envelope(j({ decision: "approve" })), attachments: [] }))).toBe("unknown");
+    expect(read(j("approve"))).toBe("unknown");
+    expect(read("[Approved by operator]")).toBe("approve");
+    expect(read("[Rejected by operator]")).toBe("reject");
+    expect(jqVerdict({ answer: "[Approved by operator]", extra: 1 }, snap)).toBe("unknown");
+  });
+
+  it("reads an answer by its parsed value, not by its bytes", () => {
+    expect(read('{ "decision" : "approve" }')).toBe("approve");
+    expect(read('{"deci\\u0073ion":"reject"}')).toBe("reject");
+    expect(read(j({ decision: "approve", outputSchema: { minimum: 1e-7 } }))).toBe("approve");
+    expect(read(j({ decision: "approve", note: "a\u007fb ```x```" }))).toBe("approve");
+    expect(read('{"decision":"approve","n":[1e21,-0,1E-7]}')).toBe("approve");
+    expect(read(envelope('{"decision": "reject"}'))).toBe("reject");
+  });
+
+  it("reads only strict JSON in which no object holds a key twice", () => {
+    for (const answer of [
+      '{"decision":"approve","decision":"reject"}',
+      '{"decision":"approve","deci\\u0073ion":"approve"}',
+      '{"decision":"approve","meta":{"x":1,"x":1}}',
+      envelope('{"decision":"approve","decision":"approve"}'),
+      '{"decision":"approve","n":01}',
+      '{"decision":"approve","n":1.}',
+      '{"decision":"approve","n":NaN}',
+      '{"decision":"approve","n":+1}',
+      '﻿{"decision":"approve"}',
+      '{"decision":"approve",}',
+      '{"decision":"approve"} {"decision":"approve"}',
+      '{"decision":"approve"} but no',
+      '```json\n{"decision":"approve"}\n```',
+      "{'decision':'approve'}",
+      "",
+    ]) {
+      expect(read(answer), answer).toBe("unknown");
+    }
+    expect(read('{"a":{"x":1},"b":{"x":2},"decision":"approve"}')).toBe("approve");
   });
 
   it("reads an answer whose decision field and approved or text field disagree as unknown", () => {
-    const snap = SNAPSHOTS.list_decision_parse;
-    expect(jqVerdict({ text: '{"decision":"approve"}', decision: "reject" }, snap)).toBe("unknown");
-    expect(jqVerdict({ text: "[Rejected by operator]", attachments: [], decision: "approve" }, snap)).toBe("unknown");
-    expect(jqVerdict({ text: "[Approved by operator]", attachments: [], decision: "approve" }, snap)).toBe("approve");
-    expect(jqVerdict({ approved: false, decision: "approve" }, snap)).toBe("unknown");
-    expect(jqVerdict({ approved: true, decision: "reject" }, snap)).toBe("unknown");
-    expect(jqVerdict({ approved: true, decision: "approve" }, snap)).toBe("approve");
-    expect(jqVerdict({ approved: false, decision: "reject" }, snap)).toBe("reject");
-  });
-
-  it("records the defaults for text that is not strict JSON", () => {
-    expect(parseLikeTheStep(node, "approve")).toEqual({ verdict: "", canonical: "" });
-    expect(parseLikeTheStep(node, '{"decision":"approve","note":"```"}')).toEqual({ verdict: "", canonical: "" });
+    expect(read(j({ text: '{"decision":"approve"}', decision: "reject" }))).toBe("unknown");
+    expect(read(j({ text: "[Rejected by operator]", attachments: [], decision: "approve" }))).toBe("unknown");
+    expect(read(j({ text: "[Approved by operator]", attachments: [], decision: "approve" }))).toBe("approve");
+    expect(read(j({ approved: false, decision: "approve" }))).toBe("unknown");
+    expect(read(j({ approved: true, decision: "reject" }))).toBe("unknown");
+    expect(read(j({ approved: true, decision: "approve" }))).toBe("approve");
+    expect(read(j({ approved: false, decision: "reject" }))).toBe("reject");
+    // All three signals: the approved field agrees and the text does not.
+    expect(read(j({ decision: "approve", approved: true, text: "[Rejected by operator]" }))).toBe("unknown");
+    expect(read(envelope(j({ decision: "approve", approved: true, text: "[Rejected by operator]" })))).toBe("unknown");
+    expect(read(j({ decision: "approve", approved: true, text: "[Approved by operator]" }))).toBe("approve");
   });
 });

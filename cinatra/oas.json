@@ -109,6 +109,9 @@
       "$component_ref": "schema_gate"
     },
     {
+      "$component_ref": "schema_answer_wrap"
+    },
+    {
       "$component_ref": "schema_decision_parse"
     },
     {
@@ -128,6 +131,9 @@
     },
     {
       "$component_ref": "list_gate"
+    },
+    {
+      "$component_ref": "list_answer_wrap"
     },
     {
       "$component_ref": "list_decision_parse"
@@ -177,9 +183,19 @@
     },
     {
       "component_type": "ControlFlowEdge",
-      "name": "schema_gate_to_schema_decision_parse",
+      "name": "schema_gate_to_schema_answer_wrap",
       "from_node": {
         "$component_ref": "schema_gate"
+      },
+      "to_node": {
+        "$component_ref": "schema_answer_wrap"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "schema_answer_wrap_to_schema_decision_parse",
+      "from_node": {
+        "$component_ref": "schema_answer_wrap"
       },
       "to_node": {
         "$component_ref": "schema_decision_parse"
@@ -281,9 +297,19 @@
     },
     {
       "component_type": "ControlFlowEdge",
-      "name": "list_gate_to_list_decision_parse",
+      "name": "list_gate_to_list_answer_wrap",
       "from_node": {
         "$component_ref": "list_gate"
+      },
+      "to_node": {
+        "$component_ref": "list_answer_wrap"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "list_answer_wrap_to_list_decision_parse",
+      "from_node": {
+        "$component_ref": "list_answer_wrap"
       },
       "to_node": {
         "$component_ref": "list_decision_parse"
@@ -781,23 +807,23 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "schema_gate_userResponse_to_schema_decision_answer",
+      "name": "schema_gate_userResponse_to_schema_answer_wrap_answer",
       "source_node": {
         "$component_ref": "schema_gate"
       },
       "source_output": "userResponse",
       "destination_node": {
-        "$component_ref": "schema_decision"
+        "$component_ref": "schema_answer_wrap"
       },
       "destination_input": "answer"
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "schema_gate_userResponse_to_schema_decision_parse_text",
+      "name": "schema_answer_wrap_output_to_schema_decision_parse_text",
       "source_node": {
-        "$component_ref": "schema_gate"
+        "$component_ref": "schema_answer_wrap"
       },
-      "source_output": "userResponse",
+      "source_output": "output",
       "destination_node": {
         "$component_ref": "schema_decision_parse"
       },
@@ -814,18 +840,6 @@
         "$component_ref": "schema_decision"
       },
       "destination_input": "verdict"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "schema_decision_parse_canonical_to_schema_decision_canonical",
-      "source_node": {
-        "$component_ref": "schema_decision_parse"
-      },
-      "source_output": "canonical",
-      "destination_node": {
-        "$component_ref": "schema_decision"
-      },
-      "destination_input": "canonical"
     },
     {
       "component_type": "DataFlowEdge",
@@ -853,23 +867,23 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "list_gate_userResponse_to_list_decision_answer",
+      "name": "list_gate_userResponse_to_list_answer_wrap_answer",
       "source_node": {
         "$component_ref": "list_gate"
       },
       "source_output": "userResponse",
       "destination_node": {
-        "$component_ref": "list_decision"
+        "$component_ref": "list_answer_wrap"
       },
       "destination_input": "answer"
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "list_gate_userResponse_to_list_decision_parse_text",
+      "name": "list_answer_wrap_output_to_list_decision_parse_text",
       "source_node": {
-        "$component_ref": "list_gate"
+        "$component_ref": "list_answer_wrap"
       },
-      "source_output": "userResponse",
+      "source_output": "output",
       "destination_node": {
         "$component_ref": "list_decision_parse"
       },
@@ -886,18 +900,6 @@
         "$component_ref": "list_decision"
       },
       "destination_input": "verdict"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "list_decision_parse_canonical_to_list_decision_canonical",
-      "source_node": {
-        "$component_ref": "list_decision_parse"
-      },
-      "source_output": "canonical",
-      "destination_node": {
-        "$component_ref": "list_decision"
-      },
-      "destination_input": "canonical"
     },
     {
       "component_type": "DataFlowEdge",
@@ -1243,6 +1245,37 @@
         }
       ]
     },
+    "schema_answer_wrap": {
+      "component_type": "PluginTemplateNode",
+      "id": "schema_answer_wrap",
+      "name": "Hand the schema review answer to its parse step",
+      "metadata": {
+        "cinatra": {
+          "purpose": "wrap-the-answer-of-schema_gate",
+          "description": "Hands the answer given at schema_gate to schema_decision_parse as the one string of a JSON object, with every backtick escaped. The parse step splits its input on code fences and repairs text that is not JSON; this object holds no code fence and is always JSON, so the parse step reads the whole answer, as it was given."
+        }
+      },
+      "inputs": [
+        {
+          "title": "answer",
+          "type": "string"
+        }
+      ],
+      "outputs": [
+        {
+          "title": "output",
+          "type": "string"
+        }
+      ],
+      "branches": [
+        "next"
+      ],
+      "input_mapping": {},
+      "output_mapping": {},
+      "template": "{\"answer\": {{ answer | tojson | replace('`', '\\\\u0060') }} }",
+      "component_plugin_name": "NodesPlugin",
+      "component_plugin_version": "26.1.0"
+    },
     "schema_decision_parse": {
       "component_type": "PluginExtractNode",
       "id": "schema_decision_parse",
@@ -1250,7 +1283,7 @@
       "metadata": {
         "cinatra": {
           "purpose": "parse-the-answer-of-schema_gate",
-          "description": "Parses the answer given at schema_gate as JSON and returns its verdict and the parsed answer written again as compact JSON. The verdict is the top-level \"decision\" (approve, revise or reject, else unknown); inside the attachment envelope it is read from the parsed `text` only, never from the attachments; nested data is not read. A decision field counts only when the answer's `approved` field and `text` field, where present beside it, read the same verdict; two signals that disagree make the answer unknown. Without a decision field, only {\"approved\": false} (reject), {\"approved\": true} and the host's snapshot of this review (approve) are known; anything else is unknown."
+          "description": "Parses the answer given at schema_gate, handed over by schema_answer_wrap, and returns its verdict. The answer is read only when it is strict JSON: every token is written as JSON writes it, no object holds a key twice, and nothing follows the value; JSON that differs only in spacing, in the escapes it uses or in how it writes a number is read the same. The verdict is the top-level \"decision\" (approve, revise or reject, else unknown); inside the attachment envelope it is read from the `text` only, which is read in the same way, never from the attachments; nested data is not read. A decision field counts only when the answer's `approved` field and `text` field, where present beside it, read the same verdict; two signals that disagree make the answer unknown. Without a decision field, only {\"approved\": false} (reject), {\"approved\": true} and the host's snapshot of this review (approve) are known; the host's bare markers \"[Approved by operator]\" and \"[Rejected by operator]\" are compared exactly. Anything else is unknown."
         }
       },
       "inputs": [
@@ -1264,11 +1297,6 @@
           "title": "verdict",
           "type": "string",
           "default": ""
-        },
-        {
-          "title": "canonical",
-          "type": "string",
-          "default": ""
         }
       ],
       "branches": [
@@ -1277,8 +1305,7 @@
       "input_mapping": {},
       "output_mapping": {},
       "output_values": {
-        "verdict": "def known: if . == \"approve\" or . == \"revise\" or . == \"reject\" then . else \"unknown\" end; def textverdict(f): if type != \"string\" then \"unknown\" elif . == \"[Approved by operator]\" then \"approve\" elif . == \"[Rejected by operator]\" then \"reject\" else (. as $t | (try fromjson catch null) as $i | if ($i | tojson) == $t then ($i | f) else \"unknown\" end) end; def verdict: if type != \"object\" then \"unknown\" elif has(\"decision\") then ((.decision | known) as $d | if has(\"approved\") and (if .approved == true then \"approve\" elif .approved == false then \"reject\" else \"unknown\" end) != $d then \"unknown\" elif has(\"text\") and (.text | textverdict(verdict)) != $d then \"unknown\" else $d end) elif . == {\"approved\": false} then \"reject\" elif . == {\"approved\": true} then \"approve\" elif keys_unsorted == [\"type\", \"instructions\", \"outputSchema\", \"seedUrls\", \"snapshotAt\"] and .type == \"scrape-schema\" then \"approve\" else \"unknown\" end; if type == \"object\" and keys_unsorted == [\"text\", \"attachments\"] then (.text | textverdict(verdict)) else verdict end",
-        "canonical": "tojson"
+        "verdict": "def known: if . == \"approve\" or . == \"revise\" or . == \"reject\" then . else \"unknown\" end; def strict: . as $raw | [scan(\"\\\"(?:[^\\\"\\\\\\\\\\\\x00-\\\\x1f]|\\\\\\\\[\\\"\\\\\\\\/bfnrt]|\\\\\\\\u[0-9a-fA-F]{4})*\\\"|-?(?:0|[1-9][0-9]*)(?:\\\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?(?![0-9.eE+-])|true|false|null|[{}\\\\[\\\\]:,]|[ \\\\t\\\\n\\\\r]+\")] as $tok | if ($tok | add // \"\") != $raw then [] elif (reduce ($tok[] | select(test(\"^[ \\\\t\\\\n\\\\r]\") | not)) as $t ({s: [], k: null, ok: true}; if .ok | not then . elif $t == \"{\" then .s += [[]] | .k = null elif $t == \"[\" then .s += [null] | .k = null elif $t == \"}\" or $t == \"]\" then .s |= .[:-1] | .k = null elif $t == \":\" then (if .k == null or (.s | length) == 0 or (.s[-1] | type) != \"array\" then .ok = false else (.k | fromjson) as $key | (.s | length - 1) as $n | if any(.s[$n][]; . == $key) then .ok = false else .s[$n] += [$key] | .k = null end end) elif ($t | startswith(\"\\\"\")) then .k = $t else .k = null end) | .ok) | not then [] else [try fromjson] end; def textverdict(f): if type != \"string\" then \"unknown\" elif . == \"[Approved by operator]\" then \"approve\" elif . == \"[Rejected by operator]\" then \"reject\" else (strict as $p | if ($p | length) == 1 then ($p[0] | f) else \"unknown\" end) end; def verdict: if type != \"object\" then \"unknown\" elif has(\"decision\") then ((.decision | known) as $d | if has(\"approved\") and (if .approved == true then \"approve\" elif .approved == false then \"reject\" else \"unknown\" end) != $d then \"unknown\" elif has(\"text\") and (.text | textverdict(verdict)) != $d then \"unknown\" else $d end) elif . == {\"approved\": false} then \"reject\" elif . == {\"approved\": true} then \"approve\" elif keys_unsorted == [\"type\", \"instructions\", \"outputSchema\", \"seedUrls\", \"snapshotAt\"] and .type == \"scrape-schema\" then \"approve\" else \"unknown\" end; if type == \"object\" and keys_unsorted == [\"answer\"] then (.answer | textverdict(if type == \"object\" and keys_unsorted == [\"text\", \"attachments\"] then (.text | textverdict(verdict)) else verdict end)) else \"unknown\" end"
       },
       "llm_config": null,
       "retry": false,
@@ -1292,21 +1319,12 @@
       "metadata": {
         "cinatra": {
           "purpose": "read-the-decision-of-schema_gate",
-          "description": "Reads the decision of the answer given at schema_gate. The host's bare markers \"[Approved by operator]\" and \"[Rejected by operator]\" are compared exactly. Any other answer takes the parse step's verdict only when that step's compact JSON equals the answer byte for byte, so text that the parse step had to repair, or JSON written in another form, is unknown. Returns approve, revise, reject or unknown."
+          "description": "Reads the decision of the answer given at schema_gate: the verdict of schema_decision_parse when it is approve, revise or reject, else unknown (also when the parse step found nothing). Returns approve, revise, reject or unknown."
         }
       },
       "inputs": [
         {
-          "title": "answer",
-          "type": "string"
-        },
-        {
           "title": "verdict",
-          "type": "string",
-          "default": ""
-        },
-        {
-          "title": "canonical",
           "type": "string",
           "default": ""
         }
@@ -1322,7 +1340,7 @@
       ],
       "input_mapping": {},
       "output_mapping": {},
-      "template": "{%- if answer == '[Approved by operator]' -%}approve{%- elif answer == '[Rejected by operator]' -%}reject{%- elif canonical == answer and verdict == 'approve' -%}approve{%- elif canonical == answer and verdict == 'revise' -%}revise{%- elif canonical == answer and verdict == 'reject' -%}reject{%- else -%}unknown{%- endif -%}",
+      "template": "{%- if verdict == 'approve' -%}approve{%- elif verdict == 'revise' -%}revise{%- elif verdict == 'reject' -%}reject{%- else -%}unknown{%- endif -%}",
       "component_plugin_name": "NodesPlugin",
       "component_plugin_version": "26.1.0"
     },
@@ -1496,7 +1514,7 @@
           "riskClass": "read_only",
           "requiresApproval": false,
           "packageName": "@cinatra-ai/list-curator-agent",
-          "description": "The collecting half of the retired single step. It dispatches and reads; every CRM write waits behind list_gate."
+          "description": "The collecting half of the retired single step. It creates no list and adds no member; those wait behind list_gate. The child agents it dispatches can write CRM records themselves (discovery can create accounts and contacts), so such records can exist before list_gate, also when the list is then rejected."
         }
       }
     },
@@ -1511,7 +1529,7 @@
           "renderer": "@cinatra-ai/list-curator-agent:final-list-review",
           "a2uiSurfaceId": "list-curator:final-list-review:input",
           "autoSkipWhenInputsPresent": false,
-          "description": "This is the list that will be created and these are the members that will be added to it. The list is created in the CRM only after you approve it here; a reject ends the run and no list is created.",
+          "description": "This is the list that will be created and these are the members the run will try to add to it. The list is created in the CRM only after you approve it here. Adding a member can fail; such a member is not on the list, and failures names what could not be added. A reject ends the run and no list is created; CRM records that discovery already created stay.",
           "inputMessageSchema": {
             "type": "object",
             "x-renderer": "@cinatra-ai/list-curator-agent:final-list-review",
@@ -1606,6 +1624,37 @@
         }
       ]
     },
+    "list_answer_wrap": {
+      "component_type": "PluginTemplateNode",
+      "id": "list_answer_wrap",
+      "name": "Hand the list review answer to its parse step",
+      "metadata": {
+        "cinatra": {
+          "purpose": "wrap-the-answer-of-list_gate",
+          "description": "Hands the answer given at list_gate to list_decision_parse as the one string of a JSON object, with every backtick escaped. The parse step splits its input on code fences and repairs text that is not JSON; this object holds no code fence and is always JSON, so the parse step reads the whole answer, as it was given."
+        }
+      },
+      "inputs": [
+        {
+          "title": "answer",
+          "type": "string"
+        }
+      ],
+      "outputs": [
+        {
+          "title": "output",
+          "type": "string"
+        }
+      ],
+      "branches": [
+        "next"
+      ],
+      "input_mapping": {},
+      "output_mapping": {},
+      "template": "{\"answer\": {{ answer | tojson | replace('`', '\\\\u0060') }} }",
+      "component_plugin_name": "NodesPlugin",
+      "component_plugin_version": "26.1.0"
+    },
     "list_decision_parse": {
       "component_type": "PluginExtractNode",
       "id": "list_decision_parse",
@@ -1613,7 +1662,7 @@
       "metadata": {
         "cinatra": {
           "purpose": "parse-the-answer-of-list_gate",
-          "description": "Parses the answer given at list_gate as JSON and returns its verdict and the parsed answer written again as compact JSON. The verdict is the top-level \"decision\" (approve, revise or reject, else unknown); inside the attachment envelope it is read from the parsed `text` only, never from the attachments; nested data is not read. A decision field counts only when the answer's `approved` field and `text` field, where present beside it, read the same verdict; two signals that disagree make the answer unknown. Without a decision field, only {\"approved\": false} (reject), {\"approved\": true} and the host's snapshot of this review (approve) are known; anything else is unknown."
+          "description": "Parses the answer given at list_gate, handed over by list_answer_wrap, and returns its verdict. The answer is read only when it is strict JSON: every token is written as JSON writes it, no object holds a key twice, and nothing follows the value; JSON that differs only in spacing, in the escapes it uses or in how it writes a number is read the same. The verdict is the top-level \"decision\" (approve, revise or reject, else unknown); inside the attachment envelope it is read from the `text` only, which is read in the same way, never from the attachments; nested data is not read. A decision field counts only when the answer's `approved` field and `text` field, where present beside it, read the same verdict; two signals that disagree make the answer unknown. Without a decision field, only {\"approved\": false} (reject), {\"approved\": true} and the host's snapshot of this review (approve) are known; the host's bare markers \"[Approved by operator]\" and \"[Rejected by operator]\" are compared exactly. Anything else is unknown."
         }
       },
       "inputs": [
@@ -1627,11 +1676,6 @@
           "title": "verdict",
           "type": "string",
           "default": ""
-        },
-        {
-          "title": "canonical",
-          "type": "string",
-          "default": ""
         }
       ],
       "branches": [
@@ -1640,8 +1684,7 @@
       "input_mapping": {},
       "output_mapping": {},
       "output_values": {
-        "verdict": "def known: if . == \"approve\" or . == \"revise\" or . == \"reject\" then . else \"unknown\" end; def textverdict(f): if type != \"string\" then \"unknown\" elif . == \"[Approved by operator]\" then \"approve\" elif . == \"[Rejected by operator]\" then \"reject\" else (. as $t | (try fromjson catch null) as $i | if ($i | tojson) == $t then ($i | f) else \"unknown\" end) end; def verdict: if type != \"object\" then \"unknown\" elif has(\"decision\") then ((.decision | known) as $d | if has(\"approved\") and (if .approved == true then \"approve\" elif .approved == false then \"reject\" else \"unknown\" end) != $d then \"unknown\" elif has(\"text\") and (.text | textverdict(verdict)) != $d then \"unknown\" else $d end) elif . == {\"approved\": false} then \"reject\" elif . == {\"approved\": true} then \"approve\" elif keys_unsorted == [\"type\", \"listName\", \"memberRefs\", \"memberCount\", \"snapshotAt\"] and .type == \"final-list\" then \"approve\" else \"unknown\" end; if type == \"object\" and keys_unsorted == [\"text\", \"attachments\"] then (.text | textverdict(verdict)) else verdict end",
-        "canonical": "tojson"
+        "verdict": "def known: if . == \"approve\" or . == \"revise\" or . == \"reject\" then . else \"unknown\" end; def strict: . as $raw | [scan(\"\\\"(?:[^\\\"\\\\\\\\\\\\x00-\\\\x1f]|\\\\\\\\[\\\"\\\\\\\\/bfnrt]|\\\\\\\\u[0-9a-fA-F]{4})*\\\"|-?(?:0|[1-9][0-9]*)(?:\\\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?(?![0-9.eE+-])|true|false|null|[{}\\\\[\\\\]:,]|[ \\\\t\\\\n\\\\r]+\")] as $tok | if ($tok | add // \"\") != $raw then [] elif (reduce ($tok[] | select(test(\"^[ \\\\t\\\\n\\\\r]\") | not)) as $t ({s: [], k: null, ok: true}; if .ok | not then . elif $t == \"{\" then .s += [[]] | .k = null elif $t == \"[\" then .s += [null] | .k = null elif $t == \"}\" or $t == \"]\" then .s |= .[:-1] | .k = null elif $t == \":\" then (if .k == null or (.s | length) == 0 or (.s[-1] | type) != \"array\" then .ok = false else (.k | fromjson) as $key | (.s | length - 1) as $n | if any(.s[$n][]; . == $key) then .ok = false else .s[$n] += [$key] | .k = null end end) elif ($t | startswith(\"\\\"\")) then .k = $t else .k = null end) | .ok) | not then [] else [try fromjson] end; def textverdict(f): if type != \"string\" then \"unknown\" elif . == \"[Approved by operator]\" then \"approve\" elif . == \"[Rejected by operator]\" then \"reject\" else (strict as $p | if ($p | length) == 1 then ($p[0] | f) else \"unknown\" end) end; def verdict: if type != \"object\" then \"unknown\" elif has(\"decision\") then ((.decision | known) as $d | if has(\"approved\") and (if .approved == true then \"approve\" elif .approved == false then \"reject\" else \"unknown\" end) != $d then \"unknown\" elif has(\"text\") and (.text | textverdict(verdict)) != $d then \"unknown\" else $d end) elif . == {\"approved\": false} then \"reject\" elif . == {\"approved\": true} then \"approve\" elif keys_unsorted == [\"type\", \"listName\", \"memberRefs\", \"memberCount\", \"snapshotAt\"] and .type == \"final-list\" then \"approve\" else \"unknown\" end; if type == \"object\" and keys_unsorted == [\"answer\"] then (.answer | textverdict(if type == \"object\" and keys_unsorted == [\"text\", \"attachments\"] then (.text | textverdict(verdict)) else verdict end)) else \"unknown\" end"
       },
       "llm_config": null,
       "retry": false,
@@ -1655,21 +1698,12 @@
       "metadata": {
         "cinatra": {
           "purpose": "read-the-decision-of-list_gate",
-          "description": "Reads the decision of the answer given at list_gate. The host's bare markers \"[Approved by operator]\" and \"[Rejected by operator]\" are compared exactly. Any other answer takes the parse step's verdict only when that step's compact JSON equals the answer byte for byte, so text that the parse step had to repair, or JSON written in another form, is unknown. Returns approve, revise, reject or unknown."
+          "description": "Reads the decision of the answer given at list_gate: the verdict of list_decision_parse when it is approve, revise or reject, else unknown (also when the parse step found nothing). Returns approve, revise, reject or unknown."
         }
       },
       "inputs": [
         {
-          "title": "answer",
-          "type": "string"
-        },
-        {
           "title": "verdict",
-          "type": "string",
-          "default": ""
-        },
-        {
-          "title": "canonical",
           "type": "string",
           "default": ""
         }
@@ -1685,7 +1719,7 @@
       ],
       "input_mapping": {},
       "output_mapping": {},
-      "template": "{%- if answer == '[Approved by operator]' -%}approve{%- elif answer == '[Rejected by operator]' -%}reject{%- elif canonical == answer and verdict == 'approve' -%}approve{%- elif canonical == answer and verdict == 'revise' -%}revise{%- elif canonical == answer and verdict == 'reject' -%}reject{%- else -%}unknown{%- endif -%}",
+      "template": "{%- if verdict == 'approve' -%}approve{%- elif verdict == 'revise' -%}revise{%- elif verdict == 'reject' -%}reject{%- else -%}unknown{%- endif -%}",
       "component_plugin_name": "NodesPlugin",
       "component_plugin_version": "26.1.0"
     },
@@ -1836,7 +1870,7 @@
           "riskClass": "write_safe",
           "requiresApproval": false,
           "packageName": "@cinatra-ai/list-curator-agent",
-          "description": "The only step that writes: it runs behind the list approval, so the list and its membership exist only once the person said yes."
+          "description": "The only step that creates the list and adds its members: it runs behind the list approval, so the list exists only once the person said yes. Adding a member can fail; such a member is not on the list, and failures names what could not be added. CRM records that discovery created during collect can exist already."
         }
       }
     },

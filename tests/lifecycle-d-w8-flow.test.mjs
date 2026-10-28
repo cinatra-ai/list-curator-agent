@@ -29,13 +29,27 @@ const hasDataEdge = (from, to) => dataEdges.some(([f, t]) => f === from && t ===
 /**
  * True when the approve branch of the step that routes on `gate`'s answer leads
  * to `to` (issue 65: a review's answer decides the next step, so no edge runs
- * from a review straight to the step it guards).
+ * from a review straight to the step it guards). The answer reaches that
+ * BranchingNode over data edges through steps that read it without a model:
+ * the wrap, parse and decision steps (template and parse nodes only).
  */
 function approveLeads(gate, to) {
-  const readers = (oas.data_flow_connections ?? [])
+  const READS = new Set(["PluginTemplateNode", "PluginExtractNode"]);
+  const flow = oas.data_flow_connections ?? [];
+  let readers = flow
     .filter((e) => e.source_node.$component_ref === gate && e.source_output === "userResponse")
-    .map((e) => e.destination_node.$component_ref);
-  const branches = (oas.data_flow_connections ?? [])
+    .map((e) => e.destination_node.$component_ref)
+    .filter((id) => READS.has(refs[id]?.component_type));
+  const seen = new Set(readers);
+  for (let frontier = readers; frontier.length > 0; ) {
+    frontier = flow
+      .filter((e) => frontier.includes(e.source_node.$component_ref))
+      .map((e) => e.destination_node.$component_ref)
+      .filter((id) => READS.has(refs[id]?.component_type) && !seen.has(id));
+    frontier.forEach((id) => seen.add(id));
+  }
+  readers = [...seen];
+  const branches = flow
     .filter((e) => readers.includes(e.source_node.$component_ref))
     .map((e) => e.destination_node.$component_ref)
     .filter((id) => refs[id]?.component_type === "BranchingNode");

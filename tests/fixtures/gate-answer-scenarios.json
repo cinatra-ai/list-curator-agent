@@ -382,8 +382,8 @@
       "propose",
       "collect"
     ],
-    "ends": "list_not_understood",
-    "message": "The answer to the list review was not understood, so no CRM list was created and no member was added to one."
+    "ends": "list_declined",
+    "message": "You declined the list, so no CRM list was created and no member was added to one."
   },
   {
     "name": "list review: a unicode-escaped approve key",
@@ -393,10 +393,11 @@
     ],
     "runs": [
       "propose",
-      "collect"
+      "collect",
+      "create"
     ],
-    "ends": "list_not_understood",
-    "message": "The answer to the list review was not understood, so no CRM list was created and no member was added to one."
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s"
   },
   {
     "name": "list review: a double HTML-escaped reject",
@@ -615,8 +616,8 @@
     "runs": [
       "propose"
     ],
-    "ends": "schema_not_understood",
-    "message": "The answer to the scrape plan review was not understood, so the run stopped before collecting any member and before creating a list."
+    "ends": "schema_declined",
+    "message": "You declined the scrape plan, so the run stopped before collecting any member and before creating a list."
   },
   {
     "name": "list review: approve written with a space",
@@ -626,10 +627,11 @@
     ],
     "runs": [
       "propose",
-      "collect"
+      "collect",
+      "create"
     ],
-    "ends": "list_not_understood",
-    "message": "The answer to the list review was not understood, so no CRM list was created and no member was added to one."
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s"
   },
   {
     "name": "list review: approve followed by more text",
@@ -665,10 +667,11 @@
     ],
     "runs": [
       "propose",
-      "collect"
+      "collect",
+      "create"
     ],
-    "ends": "list_not_understood",
-    "message": "The answer to the list review was not understood, so no CRM list was created and no member was added to one."
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s"
   },
   {
     "name": "list review: free text approve",
@@ -767,10 +770,11 @@
     ],
     "runs": [
       "propose",
-      "collect"
+      "collect",
+      "create"
     ],
-    "ends": "list_not_understood",
-    "message": "The answer to the list review was not understood, so no CRM list was created and no member was added to one."
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s"
   },
   {
     "name": "schema review: revise, then free text",
@@ -1266,9 +1270,451 @@
     ],
     "runs": [
       "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s"
+  },
+  {
+    "name": "both reviews: the screen's approve whose instructions hold a code fence",
+    "answers": [
+      "{\"decision\":\"approve\",\"instructions\":\"Use ```json\\n{}\\n```\",\"outputSchema\":{\"type\":\"object\"},\"seedUrls\":[\"https://example.test\"]}",
+      "{\"decision\":\"approve\",\"listName\":\"CTOs\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s"
+  },
+  {
+    "name": "both reviews: the screen's approve whose schema holds 1e-7",
+    "answers": [
+      "{\"decision\":\"approve\",\"instructions\":\"i\",\"outputSchema\":{\"type\":\"number\",\"minimum\":1e-7},\"seedUrls\":[\"https://example.test\"]}",
+      "{\"decision\":\"approve\",\"listName\":\"CTOs\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s"
+  },
+  {
+    "name": "both reviews: the screens' approves whose fields hold a DEL character",
+    "answers": [
+      "{\"decision\":\"approve\",\"instructions\":\"ab\",\"outputSchema\":{\"type\":\"object\"},\"seedUrls\":[]}",
+      "{\"decision\":\"approve\",\"listName\":\"CTOs\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s"
+  },
+  {
+    "name": "both reviews: the screens' fenced and DEL approves in the envelope",
+    "answers": [
+      "{\"text\":\"{\\\"decision\\\":\\\"approve\\\",\\\"instructions\\\":\\\"Use ```json\\\\n{}\\\\n```\\\",\\\"outputSchema\\\":{\\\"type\\\":\\\"object\\\"},\\\"seedUrls\\\":[\\\"https://example.test\\\"]}\",\"attachments\":[{\"artifactId\":\"a\",\"representationRevisionId\":\"r\",\"digest\":\"d\",\"mime\":\"text/plain\",\"originKind\":\"upload\",\"filename\":\"notes.txt\"}]}",
+      "{\"text\":\"{\\\"decision\\\":\\\"approve\\\",\\\"listName\\\":\\\"CTOs\\\"}\",\"attachments\":[{\"artifactId\":\"a\",\"representationRevisionId\":\"r\",\"digest\":\"d\",\"mime\":\"text/plain\",\"originKind\":\"upload\",\"filename\":\"notes.txt\"}]}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s"
+  },
+  {
+    "name": "schema review: the 1e-7 approve in the envelope, then the list approve",
+    "answers": [
+      "{\"text\":\"{\\\"decision\\\":\\\"approve\\\",\\\"instructions\\\":\\\"i\\\",\\\"outputSchema\\\":{\\\"type\\\":\\\"number\\\",\\\"minimum\\\":1e-7},\\\"seedUrls\\\":[\\\"https://example.test\\\"]}\",\"attachments\":[{\"artifactId\":\"a\",\"representationRevisionId\":\"r\",\"digest\":\"d\",\"mime\":\"text/plain\",\"originKind\":\"upload\",\"filename\":\"notes.txt\"}]}",
+      "{\"decision\":\"approve\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s"
+  },
+  {
+    "name": "both reviews: approve in the envelope whose attachment metadata holds a code fence",
+    "answers": [
+      "{\"text\":\"{\\\"decision\\\":\\\"approve\\\"}\",\"attachments\":[{\"artifactId\":\"a\",\"representationRevisionId\":\"r\",\"digest\":\"d\",\"mime\":\"text/markdown\",\"originKind\":\"upload\",\"filename\":\"notes ```json {} ```.txt\"}]}",
+      "{\"text\":\"{\\\"decision\\\":\\\"approve\\\"}\",\"attachments\":[{\"artifactId\":\"a\",\"representationRevisionId\":\"r\",\"digest\":\"d\",\"mime\":\"text/markdown\",\"originKind\":\"upload\",\"filename\":\"notes ```json {} ```.txt\"}]}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s"
+  },
+  {
+    "name": "both reviews: the bare Continue in the envelope whose attachment metadata holds a code fence",
+    "answers": [
+      "{\"text\":\"[Approved by operator]\",\"attachments\":[{\"artifactId\":\"a\",\"representationRevisionId\":\"r\",\"digest\":\"d\",\"mime\":\"text/markdown\",\"originKind\":\"upload\",\"filename\":\"notes ```json {} ```.txt\"}]}",
+      "{\"text\":\"[Approved by operator]\",\"attachments\":[{\"artifactId\":\"a\",\"representationRevisionId\":\"r\",\"digest\":\"d\",\"mime\":\"text/markdown\",\"originKind\":\"upload\",\"filename\":\"notes ```json {} ```.txt\"}]}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s"
+  },
+  {
+    "name": "schema review: the refusal marker in the envelope beside a fenced attachment named like an approve",
+    "answers": [
+      "{\"text\":\"[Rejected by operator]\",\"attachments\":[{\"artifactId\":\"a\",\"representationRevisionId\":\"r\",\"digest\":\"d\",\"mime\":\"text/plain\",\"originKind\":\"upload\",\"filename\":\"```json\\n{\\\"decision\\\":\\\"approve\\\"}\\n```\"}]}"
+    ],
+    "runs": [
+      "propose"
+    ],
+    "ends": "schema_declined",
+    "message": "You declined the scrape plan, so the run stopped before collecting any member and before creating a list."
+  },
+  {
+    "name": "list review: a reject in the envelope beside a fenced attachment named like an approve",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"text\":\"{\\\"decision\\\":\\\"reject\\\"}\",\"attachments\":[{\"artifactId\":\"a\",\"representationRevisionId\":\"r\",\"digest\":\"d\",\"mime\":\"text/plain\",\"originKind\":\"upload\",\"filename\":\"```json\\n{\\\"decision\\\":\\\"approve\\\"}\\n```\"}]}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ],
+    "ends": "list_declined",
+    "message": "You declined the list, so no CRM list was created and no member was added to one."
+  },
+  {
+    "name": "list review: a whole answer in a code fence",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "```json\n{\"decision\":\"approve\"}\n```"
+    ],
+    "runs": [
+      "propose",
       "collect"
     ],
     "ends": "list_not_understood",
     "message": "The answer to the list review was not understood, so no CRM list was created and no member was added to one."
+  },
+  {
+    "name": "list review: approve whose numbers jq writes in another form",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"approve\",\"n\":[1e21,-0,1E-7,0.5]}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s"
+  },
+  {
+    "name": "list review: a conflict: approved true agrees and a refusal text does not",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"approve\",\"approved\":true,\"text\":\"[Rejected by operator]\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ],
+    "ends": "list_not_understood",
+    "message": "The answer to the list review was not understood, so no CRM list was created and no member was added to one."
+  },
+  {
+    "name": "list review: a conflict: approved true agrees and a refusal text does not, inside the envelope",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"text\":\"{\\\"decision\\\":\\\"approve\\\",\\\"approved\\\":true,\\\"text\\\":\\\"[Rejected by operator]\\\"}\",\"attachments\":[{\"artifactId\":\"a\",\"representationRevisionId\":\"r\",\"digest\":\"d\",\"mime\":\"text/plain\",\"originKind\":\"upload\",\"filename\":\"notes.txt\"}]}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ],
+    "ends": "list_not_understood",
+    "message": "The answer to the list review was not understood, so no CRM list was created and no member was added to one."
+  },
+  {
+    "name": "schema review: a conflict: approved true agrees and a refusal text does not",
+    "answers": [
+      "{\"decision\":\"approve\",\"approved\":true,\"text\":\"[Rejected by operator]\"}"
+    ],
+    "runs": [
+      "propose"
+    ],
+    "ends": "schema_not_understood",
+    "message": "The answer to the scrape plan review was not understood, so the run stopped before collecting any member and before creating a list."
+  },
+  {
+    "name": "list review: agreeing: decision, approved and text all approve",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"approve\",\"approved\":true,\"text\":\"[Approved by operator]\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s"
+  },
+  {
+    "name": "list review: agreeing: decision, approved and text all approve, inside the envelope",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"text\":\"{\\\"decision\\\":\\\"approve\\\",\\\"approved\\\":true,\\\"text\\\":\\\"[Approved by operator]\\\"}\",\"attachments\":[{\"artifactId\":\"a\",\"representationRevisionId\":\"r\",\"digest\":\"d\",\"mime\":\"text/plain\",\"originKind\":\"upload\",\"filename\":\"notes.txt\"}]}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s"
+  },
+  {
+    "name": "list review: a conflict: a decision beside approved that is not a boolean",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"approve\",\"approved\":\"yes\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ],
+    "ends": "list_not_understood",
+    "message": "The answer to the list review was not understood, so no CRM list was created and no member was added to one."
+  },
+  {
+    "name": "list review: a conflict: a decision beside a text that is not a string",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"approve\",\"text\":{\"decision\":\"approve\"}}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ],
+    "ends": "list_not_understood",
+    "message": "The answer to the list review was not understood, so no CRM list was created and no member was added to one."
+  },
+  {
+    "name": "list review: approved false with an extra key",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"approved\":false,\"x\":1}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ],
+    "ends": "list_not_understood",
+    "message": "The answer to the list review was not understood, so no CRM list was created and no member was added to one."
+  },
+  {
+    "name": "list review: a decision key written once plainly and once escaped",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"approve\",\"deci\\u0073ion\":\"reject\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ],
+    "ends": "list_not_understood",
+    "message": "The answer to the list review was not understood, so no CRM list was created and no member was added to one."
+  },
+  {
+    "name": "list review: approve with a key twice in a nested object",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"approve\",\"meta\":{\"x\":1,\"x\":2}}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ],
+    "ends": "list_not_understood",
+    "message": "The answer to the list review was not understood, so no CRM list was created and no member was added to one."
+  },
+  {
+    "name": "list review: two decision keys inside the envelope",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"text\":\"{\\\"decision\\\":\\\"approve\\\",\\\"decision\\\":\\\"reject\\\"}\",\"attachments\":[{\"artifactId\":\"a\",\"representationRevisionId\":\"r\",\"digest\":\"d\",\"mime\":\"text/plain\",\"originKind\":\"upload\",\"filename\":\"notes.txt\"}]}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ],
+    "ends": "list_not_understood",
+    "message": "The answer to the list review was not understood, so no CRM list was created and no member was added to one."
+  },
+  {
+    "name": "list review: approve with a number written 01",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"approve\",\"n\":01}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ],
+    "ends": "list_not_understood",
+    "message": "The answer to the list review was not understood, so no CRM list was created and no member was added to one."
+  },
+  {
+    "name": "list review: approve with NaN",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"approve\",\"n\":NaN}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ],
+    "ends": "list_not_understood",
+    "message": "The answer to the list review was not understood, so no CRM list was created and no member was added to one."
+  },
+  {
+    "name": "list review: approve after a byte order mark",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "﻿{\"decision\":\"approve\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ],
+    "ends": "list_not_understood",
+    "message": "The answer to the list review was not understood, so no CRM list was created and no member was added to one."
+  },
+  {
+    "name": "list review: approve with a trailing comma",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"approve\",}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ],
+    "ends": "list_not_understood",
+    "message": "The answer to the list review was not understood, so no CRM list was created and no member was added to one."
+  },
+  {
+    "name": "list review: two answers in a row",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"approve\"}{\"decision\":\"reject\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ],
+    "ends": "list_not_understood",
+    "message": "The answer to the list review was not understood, so no CRM list was created and no member was added to one."
+  },
+  {
+    "name": "list review: approve in the envelope whose note holds a tab",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"text\":\"{\\\"decision\\\":\\\"approve\\\",\\\"note\\\":\\\"x\\\\ty\\\"}\",\"attachments\":[{\"artifactId\":\"a\",\"representationRevisionId\":\"r\",\"digest\":\"d\",\"mime\":\"text/plain\",\"originKind\":\"upload\",\"filename\":\"notes.txt\"}]}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s"
+  },
+  {
+    "name": "list review: approve in the envelope whose note holds a control character",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"text\":\"{\\\"decision\\\":\\\"approve\\\",\\\"note\\\":\\\"a\\\\u0001b\\\"}\",\"attachments\":[{\"artifactId\":\"a\",\"representationRevisionId\":\"r\",\"digest\":\"d\",\"mime\":\"text/plain\",\"originKind\":\"upload\",\"filename\":\"notes.txt\"}]}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s"
+  },
+  {
+    "name": "list review: approve in the envelope whose note holds a quote and a backslash",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"text\":\"{\\\"decision\\\":\\\"approve\\\",\\\"note\\\":\\\"say \\\\\\\"yes\\\\\\\" \\\\\\\\ ok\\\"}\",\"attachments\":[{\"artifactId\":\"a\",\"representationRevisionId\":\"r\",\"digest\":\"d\",\"mime\":\"text/plain\",\"originKind\":\"upload\",\"filename\":\"notes.txt\"}]}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s"
+  },
+  {
+    "name": "list review: approve in the envelope whose note holds a line separator and an emoji",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"text\":\"{\\\"decision\\\":\\\"approve\\\",\\\"note\\\":\\\"a b 😀\\\"}\",\"attachments\":[{\"artifactId\":\"a\",\"representationRevisionId\":\"r\",\"digest\":\"d\",\"mime\":\"text/plain\",\"originKind\":\"upload\",\"filename\":\"notes.txt\"}]}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s"
+  },
+  {
+    "name": "list review: approve in the envelope whose note holds a DEL character",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"text\":\"{\\\"decision\\\":\\\"approve\\\",\\\"note\\\":\\\"ab\\\"}\",\"attachments\":[{\"artifactId\":\"a\",\"representationRevisionId\":\"r\",\"digest\":\"d\",\"mime\":\"text/plain\",\"originKind\":\"upload\",\"filename\":\"notes.txt\"}]}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s"
+  },
+  {
+    "name": "list review: approve whose note holds HTML characters",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"approve\",\"note\":\"<b>&'</b>\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s"
   }
 ]
