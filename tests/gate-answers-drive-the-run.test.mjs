@@ -450,7 +450,12 @@ function renderTemplate(template, variables) {
         continue;
       }
       const word = part.body.split(/\s+/)[0];
-      if (stops.includes(word)) return body;
+      if (stops.includes(word)) {
+        // A closing tag holds its word alone, as Jinja requires ("endfor garbage" is
+        // a syntax error there); only elif carries a test.
+        if (word !== "elif" && part.body !== word) throw new Error(`a malformed closing tag is not followed: ${part.body}`);
+        return body;
+      }
       pos += 1;
       if (word === "set") {
         // Inside a loop, Jinja keeps a set to the loop body; the trace does not follow that.
@@ -926,6 +931,18 @@ describe("the step trace reads the template the way the runtime does", () => {
     expect(renderTemplate(refs.list_answer_wrap.template, { answer: "x```y" })).toBe('{"answer": "x\\u0060\\u0060\\u0060y" }');
   });
 
+  it("refuses a malformed closing tag, as Jinja does", () => {
+    expect(() => renderTemplate("{% for x in y %}x{% endfor garbage %}", { y: [] })).toThrow();
+    expect(() => renderTemplate("{% set x %}a{% endset garbage %}{{ x }}", {})).toThrow();
+    expect(() => renderTemplate("{% if a %}x{% endif garbage %}", { a: true })).toThrow();
+    expect(() => renderTemplate("{% if a %}x{% else garbage %}y{% endif %}", { a: true })).toThrow();
+    expect(() => renderTemplate("{% if a %}x{% elif %}y{% endif %}", { a: true })).toThrow();
+    expect(() => renderTemplate("{% for x in y %}x{% endset %}", { y: [] })).toThrow();
+    expect(() => renderTemplate("{% set x %}a{% endfor %}{{ x }}", {})).toThrow();
+    // The well-formed tags, also with whitespace control, stay followed.
+    expect(renderTemplate("{%- for x in y -%}{{ x }}{%- endfor -%}{% set z %}b{%- endset %}{% if a %}{{ z }}{% else %}c{% endif %}", { y: ["a"], a: true })).toBe("ab");
+  });
+
   it("refuses a construct it does not follow", () => {
     expect(() => renderTemplate("{%- for x in y -%}{%- else -%}{%- endfor -%}", { y: [] })).toThrow();
     expect(() => renderTemplate("{% for a, b in y %}{% endfor %}", { y: [] })).toThrow();
@@ -1071,6 +1088,24 @@ describe("the closing message tells what happened after create", () => {
     const text = closing({ listId: "L1", memberCount: null, failures: null, summary: null });
     expect(text).toBe(`${COUNT_UNKNOWN} ${UNKNOWN}`);
     expect(text).not.toMatch(/None/);
+  });
+
+  // No list id: the run reported members added to a list, so the message does not
+  // say that the list was not created, and says that this is not known. A listId
+  // that the response leaves out reaches the template as null (the API step's
+  // extraction), as here.
+  const NO_ID = "No list came back from the run, although it reported that members were added; it is not known whether the list was created.";
+  const SUMMARY = "The run searched 4 pages.";
+
+  it("makes no claim about the list's creation when no list id came back but members were reported added", () => {
+    for (const listId of [null, ""]) {
+      const text = closing({ listId, memberCount: 3, failures: [], summary: SUMMARY });
+      expect(text).toBe(`${NO_ID} ${STAY_ONLY} ${SUMMARY}`);
+      expect(text).not.toMatch(/was not created|could not be created|members were added to the list/);
+    }
+    expect(closing({ listId: null, memberCount: 3, failures: [failure(0)], summary: SUMMARY })).toBe(`${NO_ID} ${STAY_ONLY} ${SUMMARY} ${ONE}`);
+    expect(closing({ listId: "", memberCount: 2, failures: [listError], summary: SUMMARY })).toBe(`${NO_ID} ${STAY_ONLY} ${SUMMARY} ${ALSO}`);
+    expect(closing({ listId: null, memberCount: 1, failures: null, summary: null })).toBe(`${NO_ID} ${STAY_ONLY} ${UNKNOWN}`);
   });
 
   it("names a reported list error after a null member count, and counts no entry for it", () => {
