@@ -57,23 +57,76 @@ const scenarios = JSON.parse(
 );
 
 // ---------------------------------------------------------------------------
-// A Jinja subset, for the decision steps and the closing message:
-// - text, print tags {{ }}, and comments {# #} (a comment with "-", and
-//   comment-looking text inside a tag, are refused); the "-" whitespace
-//   control on print and statement tags;
-// - statements: set NAME = expr; the block set NAME ... endset (its own scope);
-//   if / elif / else / endif; for NAME in expr ... endfor over a list (no else,
-//   filter, recursion, loop variable or set inside it); a constant name
-//   (true, false, none, in either case) is refused as a target, and endset,
-//   endfor, endif and else must hold their word alone;
-// - expressions: string and number literals, true/false (either case), names,
-//   ( ), list literals, x if t else y, or / and / not, == != < > <= >=, in / not in,
-//   the tests is (not) none and is (not) mapping, and x[key] with a string key
-//   on a dict that holds it;
-// - filters: string, lower, replace, truncate, unique, list, length, first,
-//   tojson, each only in the forms its function follows.
-// The reader is written to throw on a construct outside this list; the refusal
-// cases below drive the forms that are known to read differently in Jinja.
+// The template reader of this trace. It reads the decision steps' templates and
+// the closing message; it is not Jinja, and what it does is listed here. A test
+// named in quotes is in "the step trace reads the template the way the runtime
+// does" unless another block is named.
+// Tags
+// - It splits text from {{ }} print tags and {% %} statement tags; a tag ends at
+//   its first closer, also inside a string literal (not driven by a test), and a
+//   {% tag closed by }} or a {{ tag closed by %} throws ("refuses a tag whose
+//   opener and closer do not pair").
+// - "-" on a print or statement tag trims the text next to it ("applies
+//   whitespace control, set, if, elif, else and filters").
+// - {# #} writes nothing and ends at the first #} ("writes nothing for a
+//   comment, also one that holds a print tag"); a comment with "-" throws
+//   ("refuses a construct it does not follow"), and so does {# or #} inside a
+//   tag ("refuses comment-looking text inside a print or statement tag").
+// Statements
+// - set NAME = expr, and if / elif / else / endif ("applies whitespace control,
+//   set, if, elif, else and filters").
+// - set NAME ... endset assigns the text its body writes, and a set inside it
+//   does not reach past endset ("keeps a set inside a block set to that
+//   block"; "reads a loop over a list, a block set, ...").
+// - for NAME in expr ... endfor runs its body for each item of a list and then
+//   gives NAME its earlier value back ("reads a loop over a list, a block set,
+//   ..."). It throws for an else, two names, an if filter, a set inside the
+//   loop, and a value that is not a list ("refuses a construct it does not
+//   follow"), and for the name loop or the word recursive (not driven by a test).
+// - true, false and none, in either case, throw as a target of set, a block set
+//   or for ("refuses a constant name as an assignment target").
+// - endset, endfor, endif and else throw unless they hold their word alone, and
+//   elif needs a test ("refuses a malformed closing tag"); a block closed by
+//   another block's closing word throws ("refuses a block whose closing
+//   statement belongs to another block"). Another statement word throws (not
+//   driven by a test).
+// Names
+// - A name is ASCII letters, digits and "_", not starting with a digit; other
+//   names throw (not driven by a test). Names are bound in a Map, so a name such as
+//   __proto__ is its own entry, and a name that is not bound throws ("binds a
+//   name in its own map, __proto__ and constructor too"; "refuses a
+//   variable that the template is not given, also when its name is inherited",
+//   in the block on own properties).
+// Expressions
+// - String literals in single or double quotes, with the escapes \\, \', \",
+//   \n, \r, \t, \uXXXX and \xXX; another escape throws (the \u escape: "applies
+//   whitespace control, ..."; the others are not driven by a test).
+// - Whole numbers; a "." throws (not driven by a test). true, false, True and
+//   False (true in "applies whitespace control, ..."; the others are not driven
+//   by a test).
+// - ( ), list literals [a, b], x if t else y (an if without else throws), or,
+//   and, not, == != < > <= >=, in, not in (and, ==, > and in, and x if t else
+//   y, in "applies whitespace control, ..."; the others are not driven by a test).
+// - is none, is not none, is mapping and is not mapping; another test throws
+//   ("reads a loop over a list, ..."; "refuses a construct it does not follow").
+// - x[key] reads a string key that a dict holds, and throws otherwise ("reads a
+//   loop over a list, ..."; "refuses a construct it does not follow").
+// Filters and printing
+// - string, lower, replace, truncate(length, true, end, leeway), unique(true),
+//   list and length ("applies whitespace control, ..."), tojson of a string
+//   ("writes a string with tojson as the runtime's Jinja does"; tojson of
+//   another value throws: "refuses a construct it does not follow"), and first
+//   (not driven by a test). A filter's function gets the arguments the template
+//   gives and ignores ones it does not take, for example length(1) (not driven by
+//   a test). Another filter name throws ("refuses a filter that the trace does
+//   not follow, also when its name is inherited", in the block on own
+//   properties).
+// - A print writes a string as it is, a number in decimal and null as None
+//   ("applies whitespace control, ..."); a boolean, list or dict throws (not
+//   driven by a test).
+// Where a template outside the flow uses Jinja the reader does not follow, the
+// reader can read it differently from the runtime. For the flow's own closing
+// message, the PR compares the runtime's renders with these tests.
 
 function decodeLiteral(body) {
   // Jinja decodes a string literal with Python's unicode-escape codec.
@@ -353,8 +406,8 @@ function evaluate(node, scope) {
     case "lit":
       return node.v;
     case "var":
-      if (!Object.hasOwn(scope, node.name)) throw new Error(`${node.name} is not defined`);
-      return scope[node.name];
+      if (!scope.has(node.name)) throw new Error(`${node.name} is not defined`);
+      return scope.get(node.name);
     case "list":
       return node.items.map((item) => evaluate(item, scope));
     case "cond":
@@ -392,7 +445,7 @@ function evaluate(node, scope) {
       return node.name === "none" ? v === null || v === undefined : isMapping(v);
     }
     case "item": {
-      // The runtime's sandbox reads a dict entry only when the key is there.
+      // A string key that the dict holds; anything else throws.
       const v = evaluate(node.value, scope);
       const key = evaluate(node.index, scope);
       if (!isMapping(v) || typeof key !== "string") throw new Error("only a string key of a dict is followed");
@@ -411,11 +464,11 @@ function evaluate(node, scope) {
 
 function renderTemplate(template, variables) {
   // Split into text and tags, applying the "-" whitespace control. The scan
-  // takes the earliest opener, as Jinja's lexer does: a comment writes nothing
-  // and ends at the first "#}", also when it holds a print tag, as the closing
-  // message's input hint does. A comment with the "-" whitespace control is not
-  // followed, and neither is a print or statement tag that holds comment-looking
-  // text (in a string literal, Jinja prints it as text).
+  // takes the earliest opener: a comment writes nothing and ends at the first
+  // "#}", also when it holds a print tag, as the closing message's input hint
+  // does. A comment with the "-" whitespace control throws, and so does a print
+  // or statement tag that holds comment-looking text or whose closer is of the
+  // other kind.
   const parts = [];
   const re = /\{#([\s\S]*?)#\}|(\{%-?|\{\{-?)([\s\S]*?)(-?%\}|-?\}\})/g;
   let last = 0;
@@ -428,6 +481,7 @@ function renderTemplate(template, variables) {
       continue;
     }
     if (m[3].includes("{#") || m[3].includes("#}")) throw new Error("comment-looking text inside a tag is not followed");
+    if (m[2].startsWith("{%") !== m[4].endsWith("%}")) throw new Error("a tag whose opener and closer do not pair is not followed");
     parts.push({
       kind: m[2].startsWith("{%") ? "stmt" : "print",
       body: m[3].trim(),
@@ -447,7 +501,7 @@ function renderTemplate(template, variables) {
   }
 
   // Build the statement tree.
-  // Jinja parses these names as constants and refuses them as a set or for target.
+  // These names are constants; as a set or for target they throw.
   const assignable = (name) => {
     if (["true", "false", "none", "True", "False", "None"].includes(name)) throw new Error(`can't assign to the constant ${name}`);
   };
@@ -469,14 +523,14 @@ function renderTemplate(template, variables) {
       }
       const word = part.body.split(/\s+/)[0];
       if (stops.includes(word)) {
-        // A closing tag holds its word alone, as Jinja requires ("endfor garbage" is
-        // a syntax error there); only elif carries a test.
+        // A closing tag holds its word alone ("endfor garbage" throws); elif
+        // carries a test.
         if (word !== "elif" && part.body !== word) throw new Error(`a malformed closing tag is not followed: ${part.body}`);
         return body;
       }
       pos += 1;
       if (word === "set") {
-        // Inside a loop, Jinja keeps a set to the loop body; the trace does not follow that.
+        // A set inside a loop throws: the trace does not follow its scope.
         if (loopDepth > 0) throw new Error("a set inside a loop is not followed");
         const bm = /^set\s+([A-Za-z_][A-Za-z0-9_]*)$/.exec(part.body);
         if (bm) {
@@ -492,7 +546,7 @@ function renderTemplate(template, variables) {
         assignable(sm[1]);
         body.push({ k: "set", name: sm[1], expr: parseExpression(sm[2]) });
       } else if (word === "for") {
-        // One loop name over a list; no else, no filter, no recursion, no loop variable.
+        // One loop name over a list; an else, a filter, recursive or the name loop throws.
         const fm = /^for\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+([\s\S]+)$/.exec(part.body);
         if (!fm || /\s(if|recursive)\s|\s(if|recursive)$/.test(fm[2]) || fm[1] === "loop") throw new Error(`for not followed: ${part.body}`);
         assignable(fm[1]);
@@ -523,36 +577,38 @@ function renderTemplate(template, variables) {
   const tree = block([]);
   if (pos !== parts.length) throw new Error("unbalanced statements");
 
-  const scope = { ...variables };
+  // A Map binds a name as its own entry; a plain object would hide or reach
+  // inherited names such as __proto__.
+  const scope = new Map(Object.entries(variables));
   let out = "";
   function run(body) {
     for (const st of body) {
       if (st.k === "text") out += st.v;
       else if (st.k === "print") out += pyStr(evaluate(st.expr, scope));
-      else if (st.k === "set") scope[st.name] = evaluate(st.expr, scope);
+      else if (st.k === "set") scope.set(st.name, evaluate(st.expr, scope));
       else if (st.k === "blockset") {
-        // Jinja runs the block in its own scope: a set inside it does not reach
-        // past endset, and only the captured text is assigned.
+        // The block runs in its own scope: a set inside it does not reach past
+        // endset, and the name gets the captured text.
         const outer = out;
-        const kept = { ...scope };
+        const kept = new Map(scope);
         out = "";
         run(st.body);
         const text = out;
         out = outer;
-        for (const name of Object.keys(scope)) delete scope[name];
-        Object.assign(scope, kept);
-        scope[st.name] = text;
+        scope.clear();
+        for (const [name, value] of kept) scope.set(name, value);
+        scope.set(st.name, text);
       } else if (st.k === "for") {
         const items = evaluate(st.iter, scope);
         if (!Array.isArray(items)) throw new Error("a for over anything but a list is not followed");
-        const had = Object.hasOwn(scope, st.name);
-        const saved = scope[st.name];
+        const had = scope.has(st.name);
+        const saved = scope.get(st.name);
         for (const item of items) {
-          scope[st.name] = item;
+          scope.set(st.name, item);
           run(st.body);
         }
-        if (had) scope[st.name] = saved;
-        else delete scope[st.name];
+        if (had) scope.set(st.name, saved);
+        else scope.delete(st.name);
       }
       else if (st.k === "if") {
         const arm = st.arms.find((a) => truthy(evaluate(a.test, scope)));
@@ -958,7 +1014,7 @@ describe("the step trace reads the template the way the runtime does", () => {
     expect(renderTemplate(refs.list_answer_wrap.template, { answer: "x```y" })).toBe('{"answer": "x\\u0060\\u0060\\u0060y" }');
   });
 
-  it("refuses a constant name as an assignment target, as Jinja does", () => {
+  it("refuses a constant name as an assignment target", () => {
     for (const name of ["true", "false", "none", "True", "False", "None"]) {
       expect(() => renderTemplate(`{% for ${name} in y %}x{% endfor %}`, { y: [1] })).toThrow();
       expect(() => renderTemplate(`{% set ${name} %}x{% endset %}ok`, {})).toThrow();
@@ -966,15 +1022,43 @@ describe("the step trace reads the template the way the runtime does", () => {
     }
   });
 
-  it("keeps a set inside a block set to that block, as Jinja does", () => {
-    // The pinned runtime renders "1-a" and "1-2", and refuses d outside its block.
+  it("keeps a set inside a block set to that block", () => {
+    // The pinned runtime gives "1-a", "1-2" and "12", and refuses d outside its
+    // block (checked outside this suite).
     expect(renderTemplate("{% set x = 1 %}{% set c %}{% set x = 2 %}a{% endset %}{{ x | string }}-{{ c | string }}", {})).toBe("1-a");
     expect(renderTemplate("{% set x = 1 %}{% set c %}{% set x = 2 %}{{ x | string }}{% endset %}{{ x | string }}-{{ c | string }}", {})).toBe("1-2");
     expect(renderTemplate("{% set c %}{% for f in y %}{{ f | string }}{% endfor %}{% endset %}{{ c | string }}", { y: [1, 2] })).toBe("12");
     expect(() => renderTemplate("{% set c %}{% set d %}b{% endset %}{{ d | string }}a{% endset %}{{ c | string }}-{{ d | string }}", {})).toThrow();
   });
 
-  it("refuses a malformed closing tag, as Jinja does", () => {
+  it("binds a name in its own map, __proto__ and constructor too", () => {
+    // The pinned runtime gives "1-a", "1", "2" and "k", and refuses the last
+    // (checked outside this suite).
+    expect(renderTemplate("{% set c %}a{% endset %}{{ __proto__ | string }}-{{ c | string }}", JSON.parse('{"__proto__": 1}'))).toBe("1-a");
+    expect(renderTemplate("{% for __proto__ in y %}{{ __proto__ | string }}{% endfor %}", { y: [1] })).toBe("1");
+    expect(renderTemplate("{% set __proto__ = 2 %}{{ __proto__ | string }}", {})).toBe("2");
+    expect(renderTemplate("{% set constructor %}k{% endset %}{{ constructor | string }}", {})).toBe("k");
+    expect(() => renderTemplate("{{ constructor | string }}", {})).toThrow();
+  });
+
+  it("refuses a tag whose opener and closer do not pair", () => {
+    expect(() => renderTemplate("{% for x in y }}{{ x }}{% endfor %}", { y: ["a"] })).toThrow();
+    expect(() => renderTemplate("{% if a }}x{% endif %}", { a: true })).toThrow();
+    expect(() => renderTemplate("{% set x }}a{% endset %}{{ x | string }}", {})).toThrow();
+    expect(() => renderTemplate("{{ a %}", { a: "v" })).toThrow();
+    expect(() => renderTemplate("{% if a %}x{% endif }}", { a: true })).toThrow();
+  });
+
+  it("refuses a block whose closing statement belongs to another block", () => {
+    expect(() => renderTemplate("{% for x in y %}x{% endif %}", { y: [1] })).toThrow();
+    expect(() => renderTemplate("{% for x in y %}x{% endset %}", { y: [1] })).toThrow();
+    expect(() => renderTemplate("{% if a %}x{% endfor %}", { a: true })).toThrow();
+    expect(() => renderTemplate("{% if a %}x{% endset %}", { a: true })).toThrow();
+    expect(() => renderTemplate("{% set x %}a{% endif %}{{ x | string }}", {})).toThrow();
+    expect(() => renderTemplate("{% set x %}a{% endfor %}{{ x | string }}", {})).toThrow();
+  });
+
+  it("refuses a malformed closing tag", () => {
     expect(() => renderTemplate("{% for x in y %}x{% endfor garbage %}", { y: [] })).toThrow();
     expect(() => renderTemplate("{% set x %}a{% endset garbage %}{{ x }}", {})).toThrow();
     expect(() => renderTemplate("{% if a %}x{% endif garbage %}", { a: true })).toThrow();
@@ -1004,8 +1088,9 @@ describe("the step trace reads the template the way the runtime does", () => {
     expect(renderTemplate("{# hint: {{ x }} #}a {# b #}c", {})).toBe("a c");
   });
 
-  it("refuses comment-looking text inside a print or statement tag, which Jinja prints as text", () => {
-    // Jinja writes {# x #} for the first; the trace does not follow a comment opener inside a tag.
+  it("refuses comment-looking text inside a print or statement tag", () => {
+    // The pinned runtime writes {# x #} for the first (checked outside this suite);
+    // the trace does not follow a comment opener inside a tag.
     expect(() => renderTemplate('{{ "{# x #}" }}', {})).toThrow();
     expect(() => renderTemplate("{% if x == '#}' %}a{% endif %}", { x: "" })).toThrow();
   });
@@ -1092,7 +1177,7 @@ describe("the closing message tells what happened after create", () => {
     expect(closing({ listId: "", memberCount: 0, failures: [listError, failure(0)], summary: "s" })).toBe(`${NOT_CREATED} ${STAY_ONLY} s ${ONE}`);
   });
 
-  it("counts only the row failures when the list came back, and names a reported list error apart", () => {
+  it("counts the row failures and not the list error when the list came back, and names the list error apart", () => {
     expect(closing({ listId: "L1", memberCount: 0, failures: [listError], summary: "s" })).toBe(
       `The list was created, but no members were added to it. ${ALSO}`,
     );
@@ -1105,11 +1190,11 @@ describe("the closing message tells what happened after create", () => {
     );
   });
 
-  // A null output is unknown, never a zero or an empty list, and a null summary is not printed.
+  // A null output is read as unknown, not as a zero or an empty list, and a null summary is not printed.
   const UNKNOWN = "It is not known whether any entry failed.";
   const COUNT_UNKNOWN = "The list was created, but the run did not say how many members were added to it.";
 
-  it("reads a null member count as unknown, never as no members", () => {
+  it("reads a null member count as unknown, not as no members", () => {
     for (const [failures, after] of [[[], ""], [[failure(0)], ` ${ONE}`], [null, ` ${UNKNOWN}`]]) {
       const text = closing({ listId: "L1", memberCount: null, failures, summary: "s" });
       expect(text).toBe(`${COUNT_UNKNOWN} s${after}`);
@@ -1117,7 +1202,7 @@ describe("the closing message tells what happened after create", () => {
     }
   });
 
-  it("reads a null failures list as unknown, never as no failure", () => {
+  it("reads a null failures list as unknown, not as no failure", () => {
     expect(closing({ listId: "", memberCount: 0, failures: null, summary: "s" })).toBe(`${STAY} s ${UNKNOWN}`);
     const none = closing({ listId: "L1", memberCount: 0, failures: null, summary: "s" });
     expect(none).toBe(`The list was created, but no members were added to it. ${UNKNOWN}`);
@@ -1133,14 +1218,15 @@ describe("the closing message tells what happened after create", () => {
     expect(text).not.toMatch(/None/);
   });
 
-  // No list id: the run reported members added to a list, so the message does not
-  // say that the list was not created, and says that this is not known. A listId
-  // that the response leaves out reaches the template as null (the API step's
-  // extraction), as here.
+  // No list id, and a memberCount that is not null or zero: the message does not
+  // say that the list was not created, and says that this is not known. The
+  // cases pass null or an empty string; a listId that the response leaves out
+  // reaches the template as null through the API step's extraction (read in the
+  // runtime, not driven by a test).
   const NO_ID = "No list came back from the run, although it reported that members were added; it is not known whether the list was created.";
   const SUMMARY = "The run searched 4 pages.";
 
-  it("makes no claim about the list's creation when no list id came back but members were reported added", () => {
+  it("makes no claim about the list's creation when no list id came back and the member count is not null or zero", () => {
     for (const listId of [null, ""]) {
       const text = closing({ listId, memberCount: 3, failures: [], summary: SUMMARY });
       expect(text).toBe(`${NO_ID} ${STAY_ONLY} ${SUMMARY}`);
