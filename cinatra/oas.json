@@ -1252,7 +1252,7 @@
       "metadata": {
         "cinatra": {
           "purpose": "wrap-the-answer-of-schema_gate",
-          "description": "Hands the answer given at schema_gate to schema_decision_parse as the one string of a JSON object, with every backtick escaped. The parse step splits its input on code fences and repairs text that is not JSON; this object holds no code fence and is always JSON, so the parse step reads the whole answer, as it was given."
+          "description": "Hands the answer given at schema_gate to schema_decision_parse as the one string of a JSON object, with every backtick escaped. The parse step splits its input on code fences and repairs text that is not JSON; this object holds no code fence and is JSON for every answer that the runtime's tojson writes, so the parse step does not split it, has nothing to repair and reads the answer as it was given. The one exception is an answer that holds a lone surrogate character: tojson writes it as an escape that the pinned jq refuses, so the parse step gives no verdict and the answer is unknown."
         }
       },
       "inputs": [
@@ -1283,7 +1283,7 @@
       "metadata": {
         "cinatra": {
           "purpose": "parse-the-answer-of-schema_gate",
-          "description": "Parses the answer given at schema_gate, handed over by schema_answer_wrap, and returns its verdict. The answer is read only when it is strict JSON: every token is written as JSON writes it, no object holds a key twice, and nothing follows the value; JSON that differs only in spacing, in the escapes it uses or in how it writes a number is read the same. The verdict is the top-level \"decision\" (approve, revise or reject, else unknown); inside the attachment envelope it is read from the `text` only, which is read in the same way, never from the attachments; nested data is not read. A decision field counts only when the answer's `approved` field and `text` field, where present beside it, read the same verdict; two signals that disagree make the answer unknown. Without a decision field, only {\"approved\": false} (reject), {\"approved\": true} and the host's snapshot of this review (approve) are known; the host's bare markers \"[Approved by operator]\" and \"[Rejected by operator]\" are compared exactly. Anything else is unknown."
+          "description": "Parses the answer given at schema_gate, handed over by schema_answer_wrap, and returns its verdict. The answer is read only when it is strict JSON: every token is written as JSON writes it, no object holds a key twice, and nothing but whitespace follows the value; a string that holds a lone surrogate is refused; JSON that differs only in spacing, in the escapes it uses or in how it writes a number is read the same. The verdict is the top-level \"decision\" (approve, revise or reject, else unknown); inside the attachment envelope it is read from the `text` only, which is read in the same way, never from the attachments; nested data is not read. A decision field counts only when the answer's `approved` field and `text` field, where present beside it, read the same verdict; two signals that disagree make the answer unknown. Without a decision field, only {\"approved\": false} (reject), {\"approved\": true} and the host's snapshot of this review (approve) are known; the host's bare markers \"[Approved by operator]\" and \"[Rejected by operator]\" are compared exactly. Anything else is unknown."
         }
       },
       "inputs": [
@@ -1529,7 +1529,7 @@
           "renderer": "@cinatra-ai/list-curator-agent:final-list-review",
           "a2uiSurfaceId": "list-curator:final-list-review:input",
           "autoSkipWhenInputsPresent": false,
-          "description": "This is the list that will be created and these are the members the run will try to add to it. The list is created in the CRM only after you approve it here. Adding a member can fail; such a member is not on the list, and failures names what could not be added. A reject ends the run and no list is created; CRM records that discovery already created stay.",
+          "description": "This is the list that will be created and these are the members the run will try to add to it. The list is created in the CRM only after you approve it here. Adding a member can fail; such a member is not on the list, and failures holds what the model that runs create reports it could not add. A reject ends the run and no list is created; CRM records that discovery already created stay.",
           "inputMessageSchema": {
             "type": "object",
             "x-renderer": "@cinatra-ai/list-curator-agent:final-list-review",
@@ -1631,7 +1631,7 @@
       "metadata": {
         "cinatra": {
           "purpose": "wrap-the-answer-of-list_gate",
-          "description": "Hands the answer given at list_gate to list_decision_parse as the one string of a JSON object, with every backtick escaped. The parse step splits its input on code fences and repairs text that is not JSON; this object holds no code fence and is always JSON, so the parse step reads the whole answer, as it was given."
+          "description": "Hands the answer given at list_gate to list_decision_parse as the one string of a JSON object, with every backtick escaped. The parse step splits its input on code fences and repairs text that is not JSON; this object holds no code fence and is JSON for every answer that the runtime's tojson writes, so the parse step does not split it, has nothing to repair and reads the answer as it was given. The one exception is an answer that holds a lone surrogate character: tojson writes it as an escape that the pinned jq refuses, so the parse step gives no verdict and the answer is unknown."
         }
       },
       "inputs": [
@@ -1662,7 +1662,7 @@
       "metadata": {
         "cinatra": {
           "purpose": "parse-the-answer-of-list_gate",
-          "description": "Parses the answer given at list_gate, handed over by list_answer_wrap, and returns its verdict. The answer is read only when it is strict JSON: every token is written as JSON writes it, no object holds a key twice, and nothing follows the value; JSON that differs only in spacing, in the escapes it uses or in how it writes a number is read the same. The verdict is the top-level \"decision\" (approve, revise or reject, else unknown); inside the attachment envelope it is read from the `text` only, which is read in the same way, never from the attachments; nested data is not read. A decision field counts only when the answer's `approved` field and `text` field, where present beside it, read the same verdict; two signals that disagree make the answer unknown. Without a decision field, only {\"approved\": false} (reject), {\"approved\": true} and the host's snapshot of this review (approve) are known; the host's bare markers \"[Approved by operator]\" and \"[Rejected by operator]\" are compared exactly. Anything else is unknown."
+          "description": "Parses the answer given at list_gate, handed over by list_answer_wrap, and returns its verdict. The answer is read only when it is strict JSON: every token is written as JSON writes it, no object holds a key twice, and nothing but whitespace follows the value; a string that holds a lone surrogate is refused; JSON that differs only in spacing, in the escapes it uses or in how it writes a number is read the same. The verdict is the top-level \"decision\" (approve, revise or reject, else unknown); inside the attachment envelope it is read from the `text` only, which is read in the same way, never from the attachments; nested data is not read. A decision field counts only when the answer's `approved` field and `text` field, where present beside it, read the same verdict; two signals that disagree make the answer unknown. Without a decision field, only {\"approved\": false} (reject), {\"approved\": true} and the host's snapshot of this review (approve) are known; the host's bare markers \"[Approved by operator]\" and \"[Rejected by operator]\" are compared exactly. Anything else is unknown."
         }
       },
       "inputs": [
@@ -1870,7 +1870,7 @@
           "riskClass": "write_safe",
           "requiresApproval": false,
           "packageName": "@cinatra-ai/list-curator-agent",
-          "description": "The only step that creates the list and adds its members: it runs behind the list approval, so the list exists only once the person said yes. Adding a member can fail; such a member is not on the list, and failures names what could not be added. CRM records that discovery created during collect can exist already."
+          "description": "The only step that creates the list and adds its members: it runs behind the list approval, so the list exists only once the person said yes. Adding a member can fail; such a member is not on the list, and failures holds what the model that runs create reports it could not add. CRM records that discovery created during collect can exist already."
         }
       }
     },
