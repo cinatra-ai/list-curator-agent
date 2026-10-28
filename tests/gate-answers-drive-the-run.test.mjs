@@ -410,19 +410,23 @@ const SNAPSHOTS = {
 function EXPECTED_PROGRAM(snapshot) {
   return (
     'def known: if . == "approve" or . == "revise" or . == "reject" then . else "unknown" end; ' +
+    "def textverdict(f): " +
+    'if type != "string" then "unknown" ' +
+    'elif . == "[Approved by operator]" then "approve" ' +
+    'elif . == "[Rejected by operator]" then "reject" ' +
+    "else (. as $t | (try fromjson catch null) as $i " +
+    '| if ($i | tojson) == $t then ($i | f) else "unknown" end) end; ' +
     "def verdict: " +
     'if type != "object" then "unknown" ' +
-    'elif has("decision") then (.decision | known) ' +
+    'elif has("decision") then ((.decision | known) as $d ' +
+    '| if has("approved") and (if .approved == true then "approve" elif .approved == false then "reject" else "unknown" end) != $d then "unknown" ' +
+    'elif has("text") and (.text | textverdict(verdict)) != $d then "unknown" ' +
+    "else $d end) " +
     'elif . == {"approved": false} then "reject" ' +
     'elif . == {"approved": true} then "approve" ' +
     `elif keys_unsorted == ${JSON.stringify(snapshot.keys).replaceAll(",", ", ")} and .type == "${snapshot.type}" then "approve" ` +
     'else "unknown" end; ' +
-    'if type == "object" and keys_unsorted == ["text", "attachments"] and (.text | type) == "string" ' +
-    "then .text as $t " +
-    '| if $t == "[Approved by operator]" then "approve" ' +
-    'elif $t == "[Rejected by operator]" then "reject" ' +
-    "else ((try ($t | fromjson) catch null) as $i " +
-    '| if ($i | tojson) == $t then ($i | verdict) else "unknown" end) end ' +
+    'if type == "object" and keys_unsorted == ["text", "attachments"] then (.text | textverdict(verdict)) ' +
     "else verdict end"
   );
 }
@@ -453,16 +457,10 @@ function jqToJson(v) {
 /** The JavaScript twin of EXPECTED_PROGRAM. */
 function jqVerdict(v, snapshot) {
   const known = (d) => (d === "approve" || d === "revise" || d === "reject" ? d : "unknown");
-  const verdict = (x) => {
-    if (!isObject(x)) return "unknown";
-    if (Object.prototype.hasOwnProperty.call(x, "decision")) return known(x.decision);
-    if (sameList(Object.keys(x), ["approved"]) && x.approved === false) return "reject";
-    if (sameList(Object.keys(x), ["approved"]) && x.approved === true) return "approve";
-    if (sameList(Object.keys(x), snapshot.keys) && x.type === snapshot.type) return "approve";
-    return "unknown";
-  };
-  if (isObject(v) && sameList(Object.keys(v), ["text", "attachments"]) && typeof v.text === "string") {
-    const t = v.text;
+  const has = (x, k) => Object.prototype.hasOwnProperty.call(x, k);
+  const approvedVerdict = (a) => (a === true ? "approve" : a === false ? "reject" : "unknown");
+  const textVerdict = (t) => {
+    if (typeof t !== "string") return "unknown";
     if (t === "[Approved by operator]") return "approve";
     if (t === "[Rejected by operator]") return "reject";
     let inner = null;
@@ -472,7 +470,22 @@ function jqVerdict(v, snapshot) {
       inner = null;
     }
     return jqToJson(inner) === t ? verdict(inner) : "unknown";
-  }
+  };
+  // A decision field counts only when an `approved` or `text` field beside it reads the same verdict.
+  const verdict = (x) => {
+    if (!isObject(x)) return "unknown";
+    if (has(x, "decision")) {
+      const d = known(x.decision);
+      if (has(x, "approved") && approvedVerdict(x.approved) !== d) return "unknown";
+      if (has(x, "text") && textVerdict(x.text) !== d) return "unknown";
+      return d;
+    }
+    if (sameList(Object.keys(x), ["approved"]) && x.approved === false) return "reject";
+    if (sameList(Object.keys(x), ["approved"]) && x.approved === true) return "approve";
+    if (sameList(Object.keys(x), snapshot.keys) && x.type === snapshot.type) return "approve";
+    return "unknown";
+  };
+  if (isObject(v) && sameList(Object.keys(v), ["text", "attachments"])) return textVerdict(v.text);
   return verdict(v);
 }
 
@@ -690,9 +703,19 @@ describe("the step trace reads the parse step the way the runtime does", () => {
     const snap = SNAPSHOTS.list_decision_parse;
     expect(jqVerdict({ decision: "approve", meta: { decision: "reject" } }, snap)).toBe("approve");
     expect(jqVerdict({ text: "[Rejected by operator]", attachments: [{ filename: '{"decision":"approve"}' }] }, snap)).toBe("reject");
-    expect(jqVerdict({ text: '{"decision":"approve"}', decision: "reject" }, snap)).toBe("reject");
     expect(jqVerdict({ text: '{"decision": "approve"}', attachments: [] }, snap)).toBe("unknown");
     expect(jqVerdict("approve", snap)).toBe("unknown");
+  });
+
+  it("reads an answer whose decision field and approved or text field disagree as unknown", () => {
+    const snap = SNAPSHOTS.list_decision_parse;
+    expect(jqVerdict({ text: '{"decision":"approve"}', decision: "reject" }, snap)).toBe("unknown");
+    expect(jqVerdict({ text: "[Rejected by operator]", attachments: [], decision: "approve" }, snap)).toBe("unknown");
+    expect(jqVerdict({ text: "[Approved by operator]", attachments: [], decision: "approve" }, snap)).toBe("approve");
+    expect(jqVerdict({ approved: false, decision: "approve" }, snap)).toBe("unknown");
+    expect(jqVerdict({ approved: true, decision: "reject" }, snap)).toBe("unknown");
+    expect(jqVerdict({ approved: true, decision: "approve" }, snap)).toBe("approve");
+    expect(jqVerdict({ approved: false, decision: "reject" }, snap)).toBe("reject");
   });
 
   it("records the defaults for text that is not strict JSON", () => {
