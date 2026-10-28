@@ -20,10 +20,19 @@
 //     string (see renderLikeTheStep);
 //   - a BranchingNode follows the branch that its mapping names for the value,
 //     else "default";
+//   - every step but the end records what it writes when it runs, a branching
+//     or output message step an empty set, and a step that writes other outputs
+//     than it declares (a StartNode, which declares none: its inputs) throws;
 //   - an input takes the newest value of a data edge into it, else its default;
-//     a data edge from a step that has run, into a step the run reaches or into
-//     the end, that reads an output that step did not write throws (an edge
-//     from a step that has not run yet gives no value and is not checked).
+//     when a step runs, a data edge into it that names an input it does not
+//     declare throws, and so does a data edge into it from a step that has run
+//     that reads an output that step did not write (an edge from a step that
+//     has not run yet gives no value and is not checked; neither is an edge
+//     into a step that does not run);
+//   - a name that the flow gives (a step, an output, an input, a start input,
+//     a parse step, a template variable or filter) is looked up only among an
+//     object's own properties, never among the ones every JavaScript object
+//     inherits (toString, constructor).
 //
 // The same scenarios were run through the pinned runtime (wayflowcore 26.1.2)
 // with a stub bridge; the steps and the closing text matched these
@@ -299,7 +308,7 @@ function evaluate(node, scope) {
     case "lit":
       return node.v;
     case "var":
-      if (!(node.name in scope)) throw new Error(`${node.name} is not defined`);
+      if (!Object.hasOwn(scope, node.name)) throw new Error(`${node.name} is not defined`);
       return scope[node.name];
     case "list":
       return node.items.map((item) => evaluate(item, scope));
@@ -333,7 +342,7 @@ function evaluate(node, scope) {
       return { ">": l > r, "<": l < r, ">=": l >= r, "<=": l <= r }[node.op];
     }
     case "filter": {
-      const fn = FILTERS[node.name];
+      const fn = Object.hasOwn(FILTERS, node.name) ? FILTERS[node.name] : undefined;
       if (!fn) throw new Error(`filter ${node.name} is not followed`);
       return fn(evaluate(node.value, scope), ...node.args.map((a) => evaluate(a, scope)));
     }
@@ -583,7 +592,7 @@ function jqVerdict(wrapped, snapshot) {
  * writes every text so; any other text throws.
  */
 function parseLikeTheStep(node, text) {
-  const snapshot = SNAPSHOTS[node.id];
+  const snapshot = Object.hasOwn(SNAPSHOTS, node.id) ? SNAPSHOTS[node.id] : undefined;
   if (!snapshot) throw new Error(`no snapshot for parse step ${node.id}`);
   const ov = node.output_values ?? {};
   if (!sameList(Object.keys(ov), ["verdict"]) || ov.verdict !== EXPECTED_PROGRAM(snapshot)) {
@@ -660,13 +669,19 @@ function runFlow(answers, flow = oas) {
   const messages = [];
 
   function inputsOf(node) {
+    const declaredInputs = (node.inputs ?? []).map((i) => i.title);
+    for (const e of flowData) {
+      if (e.destination_node.$component_ref === node.id && !declaredInputs.includes(e.destination_input)) {
+        throw new Error(`${node.id}: the edge ${e.name} writes into ${e.destination_input}, which ${node.id} does not declare as an input`);
+      }
+    }
     const values = {};
     for (const input of node.inputs ?? []) {
       let best = null;
       for (const e of flowData) {
         if (e.destination_node.$component_ref !== node.id || e.destination_input !== input.title) continue;
         const source = produced.get(e.source_node.$component_ref);
-        if (source && !(e.source_output in source.values)) {
+        if (source && !Object.hasOwn(source.values, e.source_output)) {
           throw new Error(`${node.id}.${input.title}: the edge ${e.name} reads ${e.source_output}, which ${e.source_node.$component_ref} does not write`);
         }
         if (source && (!best || source.at > best.at)) {
@@ -674,7 +689,7 @@ function runFlow(answers, flow = oas) {
         }
       }
       if (best) values[input.title] = best.value;
-      else if ("default" in input) values[input.title] = input.default;
+      else if (Object.hasOwn(input, "default")) values[input.title] = input.default;
       else throw new Error(`${node.id}.${input.title} has no value and no default`);
     }
     return values;
@@ -682,13 +697,21 @@ function runFlow(answers, flow = oas) {
 
   let current = flow.start_node.$component_ref;
   for (let steps = 0; steps < 200; steps += 1) {
-    const node = flowRefs[current];
+    const node = Object.hasOwn(flowRefs, current) ? flowRefs[current] : undefined;
     if (!node) throw new Error(`unknown node ${current}`);
-    const record = (values) => produced.set(node.id, { values, at: (clock += 1) });
+    const record = (values) => {
+      const declaredOutputs = node.component_type === "StartNode" && !node.outputs?.length ? node.inputs ?? [] : node.outputs ?? [];
+      const declared = declaredOutputs.map((o) => o.title).sort();
+      const written = Object.keys(values).sort();
+      if (!sameList(written, declared)) {
+        throw new Error(`${node.id} writes the outputs [${written.join(", ")}] but declares [${declared.join(", ")}]`);
+      }
+      produced.set(node.id, { values, at: (clock += 1) });
+    };
     switch (node.component_type) {
       case "StartNode": {
         const values = {};
-        for (const input of node.inputs) values[input.title] = input.title in START_INPUTS ? START_INPUTS[input.title] : input.default;
+        for (const input of node.inputs) values[input.title] = Object.hasOwn(START_INPUTS, input.title) ? START_INPUTS[input.title] : input.default;
         record(values);
         current = next(node.id);
         break;
@@ -696,7 +719,7 @@ function runFlow(answers, flow = oas) {
       case "ApiNode": {
         const inputs = inputsOf(node);
         calls.push({ step: node.id, inputs });
-        if (!CANNED[node.id]) throw new Error(`no fixed outputs for ${node.id}`);
+        if (!Object.hasOwn(CANNED, node.id)) throw new Error(`no fixed outputs for ${node.id}`);
         record(CANNED[node.id]);
         current = next(node.id);
         break;
@@ -724,13 +747,15 @@ function runFlow(answers, flow = oas) {
         const keys = Object.keys(inputs);
         if (keys.length !== 1) throw new Error(`${node.id} reads ${keys.length} inputs`);
         const value = String(inputs[keys[0]]);
-        const branch = Object.prototype.hasOwnProperty.call(node.mapping ?? {}, value) ? node.mapping[value] : "default";
+        const branch = Object.hasOwn(node.mapping ?? {}, value) ? node.mapping[value] : "default";
+        record({});
         current = next(node.id, branch);
         break;
       }
       case "OutputMessageNode":
         inputsOf(node);
         messages.push({ id: node.id, message: node.message });
+        record({});
         current = next(node.id);
         break;
       case "EndNode":
@@ -960,5 +985,113 @@ describe("the step trace follows the declared outputs of a template step the way
     );
     edge.source_output = "missingOutput";
     expect(() => runFlow(approveBoth, flow)).toThrow(/does not write/);
+  });
+});
+
+describe("the step trace tells a step that ran and wrote nothing from one that has not run, and reads only own properties", () => {
+  // The pinned loader refuses a data edge that names an output its source does
+  // not declare, or an input its destination does not declare. A branching
+  // step and an output message step declare no output, so an edge that reads
+  // one of them is refused. A name that every JavaScript object inherits, such
+  // as toString or constructor, is not an output, an input, a variable, a
+  // filter, a step or a parse step of the flow.
+  const rejectFirst = ['{"decision":"reject"}'];
+  const approveBoth = ['{"decision":"approve"}', '{"decision":"approve"}'];
+  const withEdgeToEnd = (source, output) => {
+    const flow = structuredClone(oas);
+    flow.data_flow_connections.push({
+      component_type: "DataFlowEdge",
+      name: `${source}_${output}_to_end_dispatchedRuns`,
+      source_node: { $component_ref: source },
+      source_output: output,
+      destination_node: { $component_ref: "end" },
+      destination_input: "dispatchedRuns",
+    });
+    return flow;
+  };
+  const renamed = (from, to) => {
+    const flow = structuredClone(oas);
+    const node = flow.$referenced_components[from];
+    delete flow.$referenced_components[from];
+    flow.$referenced_components[to] = { ...node, id: to };
+    for (const e of flow.control_flow_connections) {
+      if (e.from_node.$component_ref === from) e.from_node.$component_ref = to;
+      if (e.to_node.$component_ref === from) e.to_node.$component_ref = to;
+    }
+    for (const e of flow.data_flow_connections) {
+      if (e.source_node.$component_ref === from) e.source_node.$component_ref = to;
+      if (e.destination_node.$component_ref === from) e.destination_node.$component_ref = to;
+    }
+    return flow;
+  };
+
+  it("runs the flow to the end on a first answer that rejects", () => {
+    const result = runFlow(rejectFirst);
+    expect(result.finished).toBe(true);
+    expect(result.messages.map((m) => m.id)).toEqual(["schema_declined"]);
+  });
+
+  it("refuses an edge that reads a name every object inherits from a step that has run", () => {
+    expect(() => runFlow(rejectFirst, withEdgeToEnd("schema_answer_wrap", "toString"))).toThrow(
+      /reads toString, which schema_answer_wrap does not write/,
+    );
+  });
+
+  it("refuses an edge from a branching step that has run, which writes nothing", () => {
+    expect(() => runFlow(rejectFirst, withEdgeToEnd("schema_branch", "missingOutput"))).toThrow(
+      /reads missingOutput, which schema_branch does not write/,
+    );
+  });
+
+  it("refuses an edge from an output message step that has run, which writes nothing", () => {
+    expect(() => runFlow(rejectFirst, withEdgeToEnd("schema_declined", "missingOutput"))).toThrow(
+      /reads missingOutput, which schema_declined does not write/,
+    );
+  });
+
+  it("refuses an edge into an input that its destination does not declare", () => {
+    const flow = structuredClone(oas);
+    const edge = flow.data_flow_connections.find(
+      (e) => e.source_node.$component_ref === "collect" && e.destination_node.$component_ref === "end" && e.source_output === "dispatchedRuns",
+    );
+    edge.destination_input = "missingInput";
+    expect(() => runFlow(approveBoth, flow)).toThrow(/writes into missingInput, which end does not declare as an input/);
+  });
+
+  it("refuses a step that writes an output it does not declare", () => {
+    const flow = structuredClone(oas);
+    const node = flow.$referenced_components.collect;
+    node.outputs = node.outputs.filter((o) => o.title !== "failures");
+    expect(() => runFlow(approveBoth, flow)).toThrow(/collect writes the outputs \[.*failures.*\] but declares \[/);
+  });
+
+  it("takes a start input named like an inherited property from its default", () => {
+    const flow = structuredClone(oas);
+    flow.$referenced_components.start.inputs.push({ title: "constructor", type: "string", default: "from the default" });
+    const edge = flow.data_flow_connections.find((e) => e.source_node.$component_ref === "start" && e.destination_input === "intent");
+    edge.source_output = "constructor";
+    expect(runFlow(rejectFirst, flow).calls[0].inputs.intent).toBe("from the default");
+  });
+
+  it("refuses a control edge to a step that the flow does not have, also when its name is inherited", () => {
+    const flow = structuredClone(oas);
+    flow.control_flow_connections.find((e) => e.from_node.$component_ref === "start").to_node.$component_ref = "toString";
+    expect(() => runFlow(rejectFirst, flow)).toThrow(/unknown node toString/);
+  });
+
+  it("refuses an API step without fixed outputs, also when its name is inherited", () => {
+    expect(() => runFlow(approveBoth, renamed("create", "constructor"))).toThrow(/no fixed outputs for constructor/);
+  });
+
+  it("refuses a parse step without a snapshot, also when its name is inherited", () => {
+    expect(() => parseLikeTheStep({ ...refs.schema_decision_parse, id: "constructor" }, "{}")).toThrow(/no snapshot for parse step constructor/);
+  });
+
+  it("refuses a filter that the trace does not follow, also when its name is inherited", () => {
+    expect(() => renderTemplate("{%- if x | constructor -%}a{%- else -%}b{%- endif -%}", { x: "a" })).toThrow(/filter constructor is not followed/);
+  });
+
+  it("refuses a variable that the template is not given, also when its name is inherited", () => {
+    expect(() => renderTemplate("{%- if toString -%}a{%- else -%}b{%- endif -%}", {})).toThrow(/toString is not defined/);
   });
 });
