@@ -65,9 +65,10 @@ const scenarios = JSON.parse(
 // test of this file that runs that code, or says "not driven by a test" where
 // no test of this file runs it. A test named in quotes is in "the template
 // reader of the step trace" unless another block is named; "applies whitespace control, ..." is
-// "applies whitespace control, set, if, elif, else and filters", and "reads a
+// "applies whitespace control, set, if, elif, else and filters", "reads a
 // loop over a list, ..." is "reads a loop over a list, a block set, the none
-// and mapping tests and a dict entry".
+// and mapping tests and a dict entry", and "reads a name of letters, ..." is
+// "reads a name of letters, digits and underscores, bound and printed".
 // Tags
 // - It splits text from {{ }} print tags and {% %} statement tags ("applies
 //   whitespace control, ...").
@@ -109,8 +110,9 @@ const scenarios = JSON.parse(
 //   closing tag throw (not driven by a test).
 // Names
 // - A name of ASCII letters, digits and "_" that does not start with a digit
-//   is read ("applies whitespace control, ..."); a name with another letter,
-//   or one that starts with a digit, throws (not driven by a test).
+//   is read ("reads a name of letters, digits and underscores, bound and
+//   printed"); a name with another letter, or one that starts with a digit,
+//   throws (not driven by a test).
 // - Names are bound in a Map, so a name such as __proto__ or constructor is
 //   its own entry ("binds a name in its own map, __proto__ and constructor
 //   too": __proto__ as an input, a for target and a set target, constructor as
@@ -1050,6 +1052,15 @@ describe("the template reader of the step trace", () => {
     expect(renderTemplate("{{ s | truncate(3, true, '', 0) }}", { s: "abcdef" })).toBe("abc");
     expect(renderTemplate("{{ x | string }}", { x: null })).toBe("None");
     expect(renderTemplate("{{ '\\u00a0' | length }}", {})).toBe("1");
+  });
+
+  it("reads a name of letters, digits and underscores, bound and printed", () => {
+    // a_1 and x2_y are inputs; b_2 is a set target and i_3 a for target; each is
+    // printed or read back, so a name that held a digit or "_" and was cut short
+    // or refused would change the text or throw.
+    expect(renderTemplate("{{ a_1 }}-{{ x2_y | length }}", { a_1: "p", x2_y: ["q", "r"] })).toBe("p-2");
+    expect(renderTemplate("{% set b_2 = a_1 %}{% for i_3 in x2_y %}{{ i_3 }}{% endfor %}-{{ b_2 }}", { a_1: "p", x2_y: ["q", "r"] })).toBe("qr-p");
+    expect(renderTemplate("{{ x2_y }}", { x2_y: "s" })).toBe("s");
   });
 
   it("writes a string with tojson as the runtime's Jinja does", () => {
