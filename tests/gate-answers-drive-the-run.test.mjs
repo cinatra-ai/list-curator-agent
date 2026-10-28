@@ -3,8 +3,10 @@
 // start, for every answer in tests/fixtures/gate-answer-scenarios.json.
 //
 // The step trace below follows the pinned runtime's rules for the node kinds
-// this flow uses, and refuses any other kind or construct, so that a change it
-// cannot follow fails here instead of passing:
+// this flow uses, as listed here. It refuses another node kind, and its template
+// reader refuses most constructs it does not read (the reader's contract below
+// lists what it reads, refuses and ignores), so that a change it cannot follow
+// fails here instead of passing:
 //   - an ApiNode is recorded with its inputs and returns fixed outputs; no
 //     request is sent;
 //   - an InputMessageNode takes the next answer as its `userResponse`, and the
@@ -14,8 +16,8 @@
 //     flow pins (EXPECTED_PROGRAM below) through a JavaScript twin, and only for
 //     a text that the runtime's extractor reads whole: one strict JSON text
 //     without a code fence, as the wrap step writes it (see parseLikeTheStep);
-//   - a PluginTemplateNode renders its Jinja template (the subset below; its
-//     tojson filter writes a string as the runtime's Jinja does) and writes it
+//   - a PluginTemplateNode renders its template with the template reader below
+//     (not Jinja; its contract lists what it reads) and writes it
 //     as its one output, `output` or the name that its output_mapping gives;
 //     the trace follows only a node that declares exactly that output, as a
 //     string (see renderLikeTheStep);
@@ -57,8 +59,122 @@ const scenarios = JSON.parse(
 );
 
 // ---------------------------------------------------------------------------
-// A Jinja subset: {%- set / if / elif / else / endif -%}, text, and the
-// expressions and filters the decision steps use. Anything else throws.
+// The template reader of this trace. It reads the decision steps' templates and
+// the closing message; it is not Jinja. This comment lists what it reads and
+// what it refuses. After each claim in the lists below it names, in quotes, a
+// test of this file that runs that code, or says "not driven by a test" where
+// no test of this file runs it. A test named in quotes is in "the template
+// reader of the step trace" unless another block is named; "applies whitespace control, ..." is
+// "applies whitespace control, set, if, elif, else and filters", "reads a
+// loop over a list, ..." is "reads a loop over a list, a block set, the none
+// and mapping tests and a dict entry", and "reads a name of letters, ..." is
+// "reads a name of letters, digits and underscores, bound and printed".
+// Tags
+// - It splits text from {{ }} print tags and {% %} statement tags ("applies
+//   whitespace control, ...").
+// - A tag ends at its first closer, also when that closer is inside a string
+//   literal (not driven by a test).
+// - A {% tag closed by }} or a {{ tag closed by %} throws ("refuses a tag whose
+//   opener and closer do not pair"); the same with "-" on the tag (not driven
+//   by a test).
+// - "-" on a statement tag trims the whitespace next to it ("applies whitespace
+//   control, ..."); "-" on a print tag does the same (not driven by a test).
+// - {# #} writes nothing and ends at the first #}, also when it holds a print
+//   tag ("writes nothing for a comment, also one that holds a print tag").
+// - A comment with "-" throws ("refuses a construct it does not follow").
+// - {# or #} inside a print or statement tag throws ("refuses comment-looking
+//   text inside a print or statement tag").
+// - {{, {% or {# left in the text after the scan throws (not driven by a test).
+// Statements
+// - set NAME = expr assigns the value ("applies whitespace control, ...").
+// - if, elif, else and endif run the first arm whose test is true, else the
+//   else body ("applies whitespace control, ...").
+// - set NAME ... endset assigns the text its body writes ("reads a loop over a
+//   list, ..."), and a set inside it does not reach past endset ("keeps a set
+//   inside a block set to that block").
+// - for NAME in expr ... endfor runs its body once for each item of a list,
+//   then gives NAME its earlier value back ("reads a loop over a list, ..."),
+//   or unbinds NAME when it had no value ("binds a name in its own map,
+//   __proto__ and constructor too").
+// - for throws for an else, a target of two names, an if filter after the
+//   list, a set inside the loop and a value that is not a list ("refuses a
+//   construct it does not follow"); for the target loop and the word recursive
+//   it throws too (not driven by a test).
+// - true, false, none, True, False and None throw as the target of set, a block
+//   set or for ("refuses a constant name as an assignment target").
+// - endset, endfor, endif and else throw when the tag holds more than the word,
+//   and elif throws without a test ("refuses a malformed closing tag").
+// - A block closed by the closing word of another block throws ("refuses a
+//   block whose closing statement belongs to another block").
+// - Another statement word, a set that is neither form and a block without its
+//   closing tag throw (not driven by a test).
+// Names
+// - A name of ASCII letters, digits and "_" that does not start with a digit
+//   is read ("reads a name of letters, digits and underscores, bound and
+//   printed"); a name with another letter, or one that starts with a digit,
+//   throws (not driven by a test).
+// - Names are bound in a Map, so a name such as __proto__ or constructor is
+//   its own entry ("binds a name in its own map, __proto__ and constructor
+//   too": __proto__ as an input, a for target and a set target, constructor as
+//   a block-set name).
+// - A name that is not bound throws ("keeps a set inside a block set to that
+//   block"; "binds a name in its own map, __proto__ and constructor too";
+//   "refuses a variable that the template is not given, also when its name is
+//   inherited", in the block on own properties).
+// Expressions
+// - String literals in single quotes ("applies whitespace control, ...") and
+//   in double quotes (not driven by a test).
+// - The escapes \\ ("writes a string with tojson as the runtime's Jinja does",
+//   through the wrap step's template) and \uXXXX ("applies whitespace control,
+//   ..."); \', \", \n, \r, \t and \xXX (not driven by a test). Another escape,
+//   and \u or \x without its hex digits, throw (not driven by a test).
+// - Whole numbers ("applies whitespace control, ..."); a "." throws (not driven
+//   by a test).
+// - true ("applies whitespace control, ..."); True, false and False (not driven
+//   by a test).
+// - Parentheses, x if t else y, and, ==, > and in ("applies whitespace control,
+//   ...").
+// - not and != ("says that the list was not created and that records made while
+//   collecting stay, when no list came back", in "the closing message tells what
+//   happened after create").
+// - List literals [a, b], or, <, <=, >=, not in, and an if without else, which
+//   throws (not driven by a test).
+// - in finds a key of a dict ("reads a loop over a list, ...") and a substring
+//   of a string ("applies whitespace control, ..."); an item of a list (not
+//   driven by a test); in of another pair of values throws (not driven by a
+//   test).
+// - is none, is not none and is mapping ("reads a loop over a list, ..."); is
+//   not mapping (not driven by a test); another test throws ("refuses a
+//   construct it does not follow").
+// - x[key] reads a string key that a dict holds ("reads a loop over a list,
+//   ..."); a key that the dict does not hold, and an index into a list, throw
+//   ("refuses a construct it does not follow"); a key that is not a string, on
+//   a dict, throws (not driven by a test).
+// - == or != with a list, and <, >, <= or >= with a value that is not a number,
+//   throw (not driven by a test).
+// - Other text that the expression reader cannot parse throws, for example an
+//   unterminated string, a missing ) or a character it does not read (not
+//   driven by a test).
+// Filters and printing
+// - string, lower, replace, truncate(length, true, end, leeway), unique(true),
+//   list and length ("applies whitespace control, ..."); first (not driven by a
+//   test).
+// - tojson of a string ("writes a string with tojson as the runtime's Jinja
+//   does"); tojson of another value throws ("refuses a construct it does not
+//   follow").
+// - A filter's function gets the arguments the template gives and ignores ones
+//   it does not take, for example length(1) (not driven by a test). A filter
+//   given a value or arguments it does not take throws, for example lower of a
+//   number or truncate without true (not driven by a test).
+// - Another filter name throws ("refuses a filter that the trace does not
+//   follow, also when its name is inherited", in the block on own properties).
+// - A print writes a string as it is and a number in decimal ("applies
+//   whitespace control, ..."), and null as None (not driven by a test; the
+//   string filter writes null as None in "applies whitespace control, ...");
+//   a print of a boolean, list or dict throws (not driven by a test).
+// Where a template outside the flow uses Jinja the reader does not follow, the
+// reader can read it differently from the runtime. For the flow's own closing
+// message, the PR compares the runtime's renders with these tests.
 
 function decodeLiteral(body) {
   // Jinja decodes a string literal with Python's unicode-escape codec.
@@ -172,6 +288,18 @@ function parseExpression(src) {
   }
   function compare() {
     let left = filtered();
+    if (isName("is")) {
+      take();
+      let negate = false;
+      if (isName("not")) {
+        take();
+        negate = true;
+      }
+      const name = take();
+      if (name?.t !== "name" || !["none", "mapping"].includes(name.v)) throw new Error(`the test ${name?.v} is not followed`);
+      left = { k: "test", name: name.v, value: left };
+      if (negate) left = { k: "not", value: left };
+    }
     for (;;) {
       if (peek()?.t === "op" && ["==", "!=", ">", "<", ">=", "<="].includes(peek().v)) {
         const op = take().v;
@@ -188,6 +316,12 @@ function parseExpression(src) {
   }
   function filtered() {
     let value = primary();
+    while (isOp("[")) {
+      take();
+      const index = conditional();
+      expectOp("]");
+      value = { k: "item", value, index };
+    }
     while (isOp("|")) {
       take();
       const name = take();
@@ -243,6 +377,10 @@ function pyStr(v) {
   if (typeof v === "string") return v;
   if (typeof v === "number") return String(v);
   throw new Error(`the string filter of a ${typeof v} is not followed`);
+}
+
+function isMapping(v) {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
 }
 
 function truthy(v) {
@@ -316,8 +454,8 @@ function evaluate(node, scope) {
     case "lit":
       return node.v;
     case "var":
-      if (!Object.hasOwn(scope, node.name)) throw new Error(`${node.name} is not defined`);
-      return scope[node.name];
+      if (!scope.has(node.name)) throw new Error(`${node.name} is not defined`);
+      return scope.get(node.name);
     case "list":
       return node.items.map((item) => evaluate(item, scope));
     case "cond":
@@ -335,6 +473,7 @@ function evaluate(node, scope) {
     case "in": {
       const left = evaluate(node.left, scope);
       const right = evaluate(node.right, scope);
+      if (isMapping(right) && typeof left === "string") return Object.hasOwn(right, left);
       if (typeof right === "string" && typeof left === "string") return right.includes(left);
       if (Array.isArray(right)) return right.includes(left);
       throw new Error("in of this pair is not followed");
@@ -349,6 +488,18 @@ function evaluate(node, scope) {
       if (typeof l !== "number" || typeof r !== "number") throw new Error("order comparison of non-numbers");
       return { ">": l > r, "<": l < r, ">=": l >= r, "<=": l <= r }[node.op];
     }
+    case "test": {
+      const v = evaluate(node.value, scope);
+      return node.name === "none" ? v === null || v === undefined : isMapping(v);
+    }
+    case "item": {
+      // A string key that the dict holds; anything else throws.
+      const v = evaluate(node.value, scope);
+      const key = evaluate(node.index, scope);
+      if (!isMapping(v) || typeof key !== "string") throw new Error("only a string key of a dict is followed");
+      if (!Object.hasOwn(v, key)) throw new Error(`the key ${key} is not in the dict`);
+      return v[key];
+    }
     case "filter": {
       const fn = Object.hasOwn(FILTERS, node.name) ? FILTERS[node.name] : undefined;
       if (!fn) throw new Error(`filter ${node.name} is not followed`);
@@ -360,20 +511,31 @@ function evaluate(node, scope) {
 }
 
 function renderTemplate(template, variables) {
-  // Split into text and tags, applying the "-" whitespace control.
+  // Split into text and tags, applying the "-" whitespace control. The scan
+  // takes the earliest opener: a comment writes nothing and ends at the first
+  // "#}", also when it holds a print tag, as the closing message's input hint
+  // does. A comment with the "-" whitespace control throws, and so does a print
+  // or statement tag that holds comment-looking text or whose closer is of the
+  // other kind.
   const parts = [];
-  const re = /(\{%-?|\{\{-?)([\s\S]*?)(-?%\}|-?\}\})/g;
+  const re = /\{#([\s\S]*?)#\}|(\{%-?|\{\{-?)([\s\S]*?)(-?%\}|-?\}\})/g;
   let last = 0;
   let m;
   while ((m = re.exec(template)) !== null) {
     parts.push({ kind: "text", value: template.slice(last, m.index) });
-    parts.push({
-      kind: m[1].startsWith("{%") ? "stmt" : "print",
-      body: m[2].trim(),
-      trimBefore: m[1].endsWith("-"),
-      trimAfter: m[3].startsWith("-"),
-    });
     last = re.lastIndex;
+    if (m[2] === undefined) {
+      if (m[1].startsWith("-") || m[1].endsWith("-")) throw new Error("a comment with whitespace control is not followed");
+      continue;
+    }
+    if (m[3].includes("{#") || m[3].includes("#}")) throw new Error("comment-looking text inside a tag is not followed");
+    if (m[2].startsWith("{%") !== m[4].endsWith("%}")) throw new Error("a tag whose opener and closer do not pair is not followed");
+    parts.push({
+      kind: m[2].startsWith("{%") ? "stmt" : "print",
+      body: m[3].trim(),
+      trimBefore: m[2].endsWith("-"),
+      trimAfter: m[4].startsWith("-"),
+    });
   }
   parts.push({ kind: "text", value: template.slice(last) });
   if (/\{#|\{%|\{\{/.test(parts.filter((x) => x.kind === "text").map((x) => x.value).join(""))) {
@@ -387,7 +549,12 @@ function renderTemplate(template, variables) {
   }
 
   // Build the statement tree.
+  // These names are constants; as a set or for target they throw.
+  const assignable = (name) => {
+    if (["true", "false", "none", "True", "False", "None"].includes(name)) throw new Error(`can't assign to the constant ${name}`);
+  };
   let pos = 0;
+  let loopDepth = 0;
   function block(stops) {
     const body = [];
     while (pos < parts.length) {
@@ -403,12 +570,40 @@ function renderTemplate(template, variables) {
         continue;
       }
       const word = part.body.split(/\s+/)[0];
-      if (stops.includes(word)) return body;
+      if (stops.includes(word)) {
+        // A closing tag holds its word alone ("endfor garbage" throws); elif
+        // carries a test.
+        if (word !== "elif" && part.body !== word) throw new Error(`a malformed closing tag is not followed: ${part.body}`);
+        return body;
+      }
       pos += 1;
       if (word === "set") {
+        // A set inside a loop throws: the trace does not follow its scope.
+        if (loopDepth > 0) throw new Error("a set inside a loop is not followed");
+        const bm = /^set\s+([A-Za-z_][A-Za-z0-9_]*)$/.exec(part.body);
+        if (bm) {
+          assignable(bm[1]);
+          // The block form: the name takes the text the body writes.
+          const inner = block(["endset"]);
+          pos += 1;
+          body.push({ k: "blockset", name: bm[1], body: inner });
+          continue;
+        }
         const sm = /^set\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([\s\S]+)$/.exec(part.body);
         if (!sm) throw new Error(`set not followed: ${part.body}`);
+        assignable(sm[1]);
         body.push({ k: "set", name: sm[1], expr: parseExpression(sm[2]) });
+      } else if (word === "for") {
+        // One loop name over a list; an else, a filter, recursive or the name loop throws.
+        const fm = /^for\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+([\s\S]+)$/.exec(part.body);
+        if (!fm || /\s(if|recursive)\s|\s(if|recursive)$/.test(fm[2]) || fm[1] === "loop") throw new Error(`for not followed: ${part.body}`);
+        assignable(fm[1]);
+        loopDepth += 1;
+        const inner = block(["endfor", "else"]);
+        loopDepth -= 1;
+        if (parts[pos].body.split(/\s+/)[0] !== "endfor") throw new Error("for with else is not followed");
+        pos += 1;
+        body.push({ k: "for", name: fm[1], iter: parseExpression(fm[2]), body: inner });
       } else if (word === "if") {
         const arms = [{ test: parseExpression(part.body.slice(2)), body: block(["elif", "else", "endif"]) }];
         let otherwise = [];
@@ -430,13 +625,39 @@ function renderTemplate(template, variables) {
   const tree = block([]);
   if (pos !== parts.length) throw new Error("unbalanced statements");
 
-  const scope = { ...variables };
+  // A Map binds a name as its own entry; a plain object would hide or reach
+  // inherited names such as __proto__.
+  const scope = new Map(Object.entries(variables));
   let out = "";
   function run(body) {
     for (const st of body) {
       if (st.k === "text") out += st.v;
       else if (st.k === "print") out += pyStr(evaluate(st.expr, scope));
-      else if (st.k === "set") scope[st.name] = evaluate(st.expr, scope);
+      else if (st.k === "set") scope.set(st.name, evaluate(st.expr, scope));
+      else if (st.k === "blockset") {
+        // The block runs in its own scope: a set inside it does not reach past
+        // endset, and the name gets the captured text.
+        const outer = out;
+        const kept = new Map(scope);
+        out = "";
+        run(st.body);
+        const text = out;
+        out = outer;
+        scope.clear();
+        for (const [name, value] of kept) scope.set(name, value);
+        scope.set(st.name, text);
+      } else if (st.k === "for") {
+        const items = evaluate(st.iter, scope);
+        if (!Array.isArray(items)) throw new Error("a for over anything but a list is not followed");
+        const had = scope.has(st.name);
+        const saved = scope.get(st.name);
+        for (const item of items) {
+          scope.set(st.name, item);
+          run(st.body);
+        }
+        if (had) scope.set(st.name, saved);
+        else scope.delete(st.name);
+      }
       else if (st.k === "if") {
         const arm = st.arms.find((a) => truthy(evaluate(a.test, scope)));
         run(arm ? arm.body : st.otherwise);
@@ -665,7 +886,7 @@ function nextOf(nodeId, branch, controlEdges = control) {
   return edges[0].to_node.$component_ref;
 }
 
-function runFlow(answers, flow = oas) {
+function runFlow(answers, flow = oas, canned = CANNED) {
   const flowRefs = flow.$referenced_components;
   const flowControl = flow.control_flow_connections ?? [];
   const flowData = flow.data_flow_connections ?? [];
@@ -745,8 +966,8 @@ function runFlow(answers, flow = oas) {
       case "ApiNode": {
         const inputs = inputsOf(node);
         calls.push({ step: node.id, inputs });
-        if (!Object.hasOwn(CANNED, node.id)) throw new Error(`no fixed outputs for ${node.id}`);
-        record(CANNED[node.id]);
+        if (!Object.hasOwn(canned, node.id)) throw new Error(`no fixed outputs for ${node.id}`);
+        record(canned[node.id]);
         current = next(node.id);
         break;
       }
@@ -779,8 +1000,7 @@ function runFlow(answers, flow = oas) {
         break;
       }
       case "OutputMessageNode":
-        inputsOf(node);
-        messages.push({ id: node.id, message: node.message });
+        messages.push({ id: node.id, message: node.message, inputs: inputsOf(node) });
         record({});
         current = next(node.id);
         break;
@@ -822,7 +1042,7 @@ describe("the answers at the reviews drive the run", () => {
   }
 });
 
-describe("the step trace reads the template the way the runtime does", () => {
+describe("the template reader of the step trace", () => {
   it("applies whitespace control, set, if, elif, else and filters", () => {
     const t = "{%- set a = x | string | lower | replace(' ', '') -%} {%- if 'ab' in a and n | length > 1 -%} yes {%- elif a == '' -%}empty{%- else -%}no{%- endif -%}";
     expect(renderTemplate(t, { x: "A B", n: ["1", "2"] })).toBe("yes");
@@ -834,6 +1054,16 @@ describe("the step trace reads the template the way the runtime does", () => {
     expect(renderTemplate("{{ '\\u00a0' | length }}", {})).toBe("1");
   });
 
+  it("reads a name of letters, digits and underscores, bound and printed", () => {
+    // a_1 and x2_y are inputs; b_2 is a set target, c_4 a block-set target and
+    // i_3 a for target; each is printed or read back, so a name that held a
+    // digit or "_" and was cut short or refused would change the text or throw.
+    expect(renderTemplate("{{ a_1 }}-{{ x2_y | length }}", { a_1: "p", x2_y: ["q", "r"] })).toBe("p-2");
+    expect(renderTemplate("{% set b_2 = a_1 %}{% for i_3 in x2_y %}{{ i_3 }}{% endfor %}-{{ b_2 }}", { a_1: "p", x2_y: ["q", "r"] })).toBe("qr-p");
+    expect(renderTemplate("{{ x2_y }}", { x2_y: "s" })).toBe("s");
+    expect(renderTemplate("{% set c_4 %}<{{ a_1 }}>{% endset %}{{ c_4 }}", { a_1: "p" })).toBe("<p>");
+  });
+
   it("writes a string with tojson as the runtime's Jinja does", () => {
     // The text that the runtime's jinja2 writes for this input.
     expect(renderTemplate("{{ s | tojson }}", { s: 'a"b\\<>&\'`\u007fé\u{1F600}\n\u0001' })).toBe(
@@ -842,9 +1072,245 @@ describe("the step trace reads the template the way the runtime does", () => {
     expect(renderTemplate(refs.list_answer_wrap.template, { answer: "x```y" })).toBe('{"answer": "x\\u0060\\u0060\\u0060y" }');
   });
 
+  it("refuses a constant name as an assignment target", () => {
+    for (const name of ["true", "false", "none", "True", "False", "None"]) {
+      expect(() => renderTemplate(`{% for ${name} in y %}x{% endfor %}`, { y: [1] })).toThrow();
+      expect(() => renderTemplate(`{% set ${name} %}x{% endset %}ok`, {})).toThrow();
+      expect(() => renderTemplate(`{% set ${name} = 1 %}ok`, {})).toThrow();
+    }
+  });
+
+  it("keeps a set inside a block set to that block", () => {
+    // The pinned runtime gives "1-a", "1-2" and "12", and refuses d outside its
+    // block (checked outside this suite).
+    expect(renderTemplate("{% set x = 1 %}{% set c %}{% set x = 2 %}a{% endset %}{{ x | string }}-{{ c | string }}", {})).toBe("1-a");
+    expect(renderTemplate("{% set x = 1 %}{% set c %}{% set x = 2 %}{{ x | string }}{% endset %}{{ x | string }}-{{ c | string }}", {})).toBe("1-2");
+    expect(renderTemplate("{% set c %}{% for f in y %}{{ f | string }}{% endfor %}{% endset %}{{ c | string }}", { y: [1, 2] })).toBe("12");
+    expect(() => renderTemplate("{% set c %}{% set d %}b{% endset %}{{ d | string }}a{% endset %}{{ c | string }}-{{ d | string }}", {})).toThrow();
+  });
+
+  it("binds a name in its own map, __proto__ and constructor too", () => {
+    // The pinned runtime gives "1-a", "1", "2" and "k", and refuses the last
+    // (checked outside this suite).
+    expect(renderTemplate("{% set c %}a{% endset %}{{ __proto__ | string }}-{{ c | string }}", JSON.parse('{"__proto__": 1}'))).toBe("1-a");
+    expect(renderTemplate("{% for __proto__ in y %}{{ __proto__ | string }}{% endfor %}", { y: [1] })).toBe("1");
+    expect(renderTemplate("{% set __proto__ = 2 %}{{ __proto__ | string }}", {})).toBe("2");
+    expect(renderTemplate("{% set constructor %}k{% endset %}{{ constructor | string }}", {})).toBe("k");
+    expect(() => renderTemplate("{{ constructor | string }}", {})).toThrow();
+  });
+
+  it("refuses a tag whose opener and closer do not pair", () => {
+    expect(() => renderTemplate("{% for x in y }}{{ x }}{% endfor %}", { y: ["a"] })).toThrow();
+    expect(() => renderTemplate("{% if a }}x{% endif %}", { a: true })).toThrow();
+    expect(() => renderTemplate("{% set x }}a{% endset %}{{ x | string }}", {})).toThrow();
+    expect(() => renderTemplate("{{ a %}", { a: "v" })).toThrow();
+    expect(() => renderTemplate("{% if a %}x{% endif }}", { a: true })).toThrow();
+  });
+
+  it("refuses a block whose closing statement belongs to another block", () => {
+    expect(() => renderTemplate("{% for x in y %}x{% endif %}", { y: [1] })).toThrow();
+    expect(() => renderTemplate("{% for x in y %}x{% endset %}", { y: [1] })).toThrow();
+    expect(() => renderTemplate("{% if a %}x{% endfor %}", { a: true })).toThrow();
+    expect(() => renderTemplate("{% if a %}x{% endset %}", { a: true })).toThrow();
+    expect(() => renderTemplate("{% set x %}a{% endif %}{{ x | string }}", {})).toThrow();
+    expect(() => renderTemplate("{% set x %}a{% endfor %}{{ x | string }}", {})).toThrow();
+  });
+
+  it("refuses a malformed closing tag", () => {
+    expect(() => renderTemplate("{% for x in y %}x{% endfor garbage %}", { y: [] })).toThrow();
+    expect(() => renderTemplate("{% set x %}a{% endset garbage %}{{ x }}", {})).toThrow();
+    expect(() => renderTemplate("{% if a %}x{% endif garbage %}", { a: true })).toThrow();
+    expect(() => renderTemplate("{% if a %}x{% else garbage %}y{% endif %}", { a: true })).toThrow();
+    expect(() => renderTemplate("{% if a %}x{% elif %}y{% endif %}", { a: true })).toThrow();
+    expect(() => renderTemplate("{% for x in y %}x{% endset %}", { y: [] })).toThrow();
+    expect(() => renderTemplate("{% set x %}a{% endfor %}{{ x }}", {})).toThrow();
+    // The well-formed tags, also with whitespace control, stay followed.
+    expect(renderTemplate("{%- for x in y -%}{{ x }}{%- endfor -%}{% set z %}b{%- endset %}{% if a %}{{ z }}{% else %}c{% endif %}", { y: ["a"], a: true })).toBe("ab");
+  });
+
   it("refuses a construct it does not follow", () => {
-    expect(() => renderTemplate("{%- for x in y -%}{%- endfor -%}", { y: [] })).toThrow();
+    expect(() => renderTemplate("{%- for x in y -%}{%- else -%}{%- endfor -%}", { y: [] })).toThrow();
+    expect(() => renderTemplate("{% for a, b in y %}{% endfor %}", { y: [] })).toThrow();
+    expect(() => renderTemplate("{% for x in y if x %}{% endfor %}", { y: [] })).toThrow();
+    expect(() => renderTemplate("{% for x in y %}{% set z = 1 %}{% endfor %}", { y: [1] })).toThrow();
+    expect(() => renderTemplate("{% for x in y %}{% endfor %}", { y: null })).toThrow();
+    expect(() => renderTemplate("{{ d['k'] }}", { d: {} })).toThrow();
+    expect(() => renderTemplate("{{ d[0] }}", { d: ["a"] })).toThrow();
+    expect(() => renderTemplate("{% if x is string %}{% endif %}", { x: "a" })).toThrow();
     expect(() => renderTemplate("{{ x | tojson }}", { x: 1 })).toThrow();
+    expect(() => renderTemplate("a {#- x #}b", {})).toThrow();
+    expect(() => renderTemplate("a {# x -#} b", {})).toThrow();
+  });
+
+  it("writes nothing for a comment, also one that holds a print tag", () => {
+    expect(renderTemplate("{# hint: {{ x }} #}a {# b #}c", {})).toBe("a c");
+  });
+
+  it("refuses comment-looking text inside a print or statement tag", () => {
+    // The pinned runtime writes {# x #} for the first (checked outside this suite);
+    // the trace does not follow a comment opener inside a tag.
+    expect(() => renderTemplate('{{ "{# x #}" }}', {})).toThrow();
+    expect(() => renderTemplate("{% if x == '#}' %}a{% endif %}", { x: "" })).toThrow();
+  });
+
+  it("reads a loop over a list, a block set, the none and mapping tests and a dict entry", () => {
+    const t = "{% set c %}{% for f in xs %}{% if f is mapping and 'k' in f and f['k'] == 'v' %}x{% endif %}{% endfor %}{% endset %}{{ c | length }}";
+    expect(renderTemplate(t, { xs: [{ k: "v" }, { k: "w" }, { j: "v" }, "v", 1, { k: "v" }] })).toBe("2");
+    expect(renderTemplate("{% if x is none %}N{% elif x is not none %}V{% endif %}", { x: null })).toBe("N");
+    expect(renderTemplate("{% if x is none %}N{% elif x is not none %}V{% endif %}", { x: 0 })).toBe("V");
+    expect(renderTemplate("{% set f = 1 %}{% for f in xs %}{{ f | string }}{% endfor %}{{ f | string }}", { xs: [2, 3] })).toBe("231");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The closing message after create (issue 68). Both reviews approve, create
+// returns the given outputs, and the text is the closing step's message
+// rendered with the inputs that its data edges give it.
+
+describe("the closing message tells what happened after create", () => {
+  const closing = (createOutputs) => {
+    const result = runFlow(["[Approved by operator]", "[Approved by operator]"], oas, {
+      ...CANNED,
+      create: { ...CANNED.create, ...createOutputs },
+    });
+    expect(result.finished, "the run ends after the two approvals").toBe(true);
+    expect(result.calls.map((c) => c.step), "the steps that ran").toEqual(["propose", "collect", "create"]);
+    expect(result.messages.map((m) => m.id), "the closing step").toEqual(["curation_summary"]);
+    return renderTemplate(result.messages[0].message, result.messages[0].inputs);
+  };
+  const failure = (rowIndex) => ({ rowIndex, stage: "add", error: "The CRM refused the member." });
+
+  it("says that the list was not created and that records made while collecting stay, when no list came back", () => {
+    const text = closing({ listId: "", memberCount: 0, failures: [], summary: "The CRM refused the list name." });
+    expect(text).toBe(
+      "The list was not created. Any accounts and contacts that were created while collecting the candidates stay in your CRM. The CRM refused the list name.",
+    );
+    expect(text).not.toMatch(/nothing was saved/i);
+  });
+
+  const STAY = "The list was not created. Any accounts and contacts that were created while collecting the candidates stay in your CRM.";
+  const ONE = "1 entry could not be collected or added; it is listed with the run.";
+  const TWO = "2 entries could not be collected or added; they are listed with the run.";
+
+  it("also names the failed entries when no list came back, in the singular for one", () => {
+    expect(closing({ listId: "", memberCount: 0, failures: [failure(0)], summary: "s" })).toBe(`${STAY} s ${ONE}`);
+    expect(closing({ listId: "", memberCount: 0, failures: [failure(0), failure(1)], summary: "s" })).toBe(`${STAY} s ${TWO}`);
+  });
+
+  it("says that nothing came back when the list was created and no entry was added or failed", () => {
+    const text = closing({ listId: "L1", memberCount: 0, failures: [], summary: "s" });
+    expect(text).toBe("The list was created but no members were added to it - nothing came back from the pages that were searched.");
+  });
+
+  it("tells a run whose every entry failed apart from one that found nothing", () => {
+    const text = closing({ listId: "L1", memberCount: 0, failures: [failure(0), failure(1)], summary: "s" });
+    expect(text).toBe(`The list was created, but no members were added to it: ${TWO}`);
+    expect(text).not.toMatch(/nothing came back/i);
+  });
+
+  it("names a single failed entry in the singular when the list was created with no member", () => {
+    const text = closing({ listId: "L1", memberCount: 0, failures: [failure(0)], summary: "s" });
+    expect(text).toBe(`The list was created, but no members were added to it: ${ONE}`);
+  });
+
+  it("counts the members added and the entries that failed, in the singular for one", () => {
+    expect(closing({ listId: "L1", memberCount: 3, failures: [], summary: "s" })).toBe("3 members were added to the list. s");
+    expect(closing({ listId: "L1", memberCount: 3, failures: [failure(3)], summary: "s" })).toBe(`3 members were added to the list. s ${ONE}`);
+    expect(closing({ listId: "L1", memberCount: 3, failures: [failure(3), failure(4)], summary: "s" })).toBe(
+      `3 members were added to the list. s ${TWO}`,
+    );
+  });
+
+  // A list that could not be created is no entry: the create step reports it as one failure with the
+  // stage crm-list-create and no row (README.md, and the failures declaration of create).
+  const listError = { stage: "crm-list-create", error: "CRM rejected list" };
+  const NOT_CREATED = "The list could not be created in the CRM; what went wrong is listed with the run.";
+  const STAY_ONLY = "Any accounts and contacts that were created while collecting the candidates stay in your CRM.";
+  const ALSO = "The run also reported an error while creating the list; it is listed with the run.";
+
+  it("names a list that could not be created as such, and counts no entry for it", () => {
+    const text = closing({ listId: "", memberCount: 0, failures: [listError], summary: "Failed to create CRM list — no members were added." });
+    expect(text).toBe(`${NOT_CREATED} ${STAY_ONLY} Failed to create CRM list — no members were added.`);
+    expect(text).not.toMatch(/entr(y|ies) could not/);
+    expect(closing({ listId: "", memberCount: 0, failures: [listError, failure(0)], summary: "s" })).toBe(`${NOT_CREATED} ${STAY_ONLY} s ${ONE}`);
+  });
+
+  it("counts the row failures and not the list error when the list came back, and names the list error apart", () => {
+    expect(closing({ listId: "L1", memberCount: 0, failures: [listError], summary: "s" })).toBe(
+      `The list was created, but no members were added to it. ${ALSO}`,
+    );
+    expect(closing({ listId: "L1", memberCount: 3, failures: [listError, failure(3)], summary: "s" })).toBe(
+      `3 members were added to the list. s ${ONE} ${ALSO}`,
+    );
+    // An entry without a stage, or one that is not an object, is a row failure.
+    expect(closing({ listId: "L1", memberCount: 3, failures: [{ error: "no stage" }, "a string"], summary: "s" })).toBe(
+      `3 members were added to the list. s ${TWO}`,
+    );
+  });
+
+  // A null output is read as unknown, not as a zero or an empty list, and a null summary is not printed.
+  const UNKNOWN = "It is not known whether any entry failed.";
+  const COUNT_UNKNOWN = "The list was created, but the run did not say how many members were added to it.";
+
+  it("reads a null member count as unknown, not as no members", () => {
+    for (const [failures, after] of [[[], ""], [[failure(0)], ` ${ONE}`], [null, ` ${UNKNOWN}`]]) {
+      const text = closing({ listId: "L1", memberCount: null, failures, summary: "s" });
+      expect(text).toBe(`${COUNT_UNKNOWN} s${after}`);
+      expect(text).not.toMatch(/no members|nothing came back/);
+    }
+  });
+
+  it("reads a null failures list as unknown, not as no failure", () => {
+    expect(closing({ listId: "", memberCount: 0, failures: null, summary: "s" })).toBe(`${STAY} s ${UNKNOWN}`);
+    const none = closing({ listId: "L1", memberCount: 0, failures: null, summary: "s" });
+    expect(none).toBe(`The list was created, but no members were added to it. ${UNKNOWN}`);
+    expect(none).not.toMatch(/nothing came back/);
+    expect(closing({ listId: "L1", memberCount: 3, failures: null, summary: "s" })).toBe(`3 members were added to the list. s ${UNKNOWN}`);
+  });
+
+  it("prints no None for a null summary", () => {
+    expect(closing({ listId: "", memberCount: 0, failures: [], summary: null })).toBe(STAY);
+    expect(closing({ listId: "L1", memberCount: 3, failures: [], summary: null })).toBe("3 members were added to the list.");
+    const text = closing({ listId: "L1", memberCount: null, failures: null, summary: null });
+    expect(text).toBe(`${COUNT_UNKNOWN} ${UNKNOWN}`);
+    expect(text).not.toMatch(/None/);
+  });
+
+  // No list id, and a memberCount that is not null or zero: the message does not
+  // say that the list was not created, and says that this is not known. The
+  // cases pass null or an empty string; a listId that the response leaves out
+  // reaches the template as null through the API step's extraction (read in the
+  // runtime, not driven by a test).
+  const NO_ID = "No list came back from the run, although it reported that members were added; it is not known whether the list was created.";
+  const SUMMARY = "The run searched 4 pages.";
+
+  it("makes no claim about the list's creation when no list id came back and the member count is not null or zero", () => {
+    for (const listId of [null, ""]) {
+      const text = closing({ listId, memberCount: 3, failures: [], summary: SUMMARY });
+      expect(text).toBe(`${NO_ID} ${STAY_ONLY} ${SUMMARY}`);
+      expect(text).not.toMatch(/was not created|could not be created|members were added to the list/);
+    }
+    expect(closing({ listId: null, memberCount: 3, failures: [failure(0)], summary: SUMMARY })).toBe(`${NO_ID} ${STAY_ONLY} ${SUMMARY} ${ONE}`);
+    expect(closing({ listId: "", memberCount: 2, failures: [listError], summary: SUMMARY })).toBe(`${NO_ID} ${STAY_ONLY} ${SUMMARY} ${ALSO}`);
+    expect(closing({ listId: null, memberCount: 1, failures: null, summary: null })).toBe(`${NO_ID} ${STAY_ONLY} ${UNKNOWN}`);
+  });
+
+  it("names a reported list error after a null member count, and counts no entry for it", () => {
+    const text = closing({ listId: "L1", memberCount: null, failures: [listError], summary: "s" });
+    expect(text).toBe(`${COUNT_UNKNOWN} s ${ALSO}`);
+    expect(text).not.toMatch(/entr(y|ies) could not|no members|nothing came back/);
+  });
+
+  it("counts the row failures and names a reported list error apart when the list came back with no member", () => {
+    const text = closing({ listId: "L1", memberCount: 0, failures: [failure(0), listError, failure(1)], summary: "s" });
+    expect(text).toBe(`The list was created, but no members were added to it: ${TWO} ${ALSO}`);
+    expect(text).not.toMatch(/nothing came back/);
+  });
+
+  it("names a reported list error after the members added, with no row failure", () => {
+    const text = closing({ listId: "L1", memberCount: 3, failures: [listError], summary: "s" });
+    expect(text).toBe(`3 members were added to the list. s ${ALSO}`);
+    expect(text).not.toMatch(/entr(y|ies) could not/);
   });
 });
 

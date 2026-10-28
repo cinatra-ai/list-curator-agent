@@ -1511,7 +1511,7 @@
       ],
       "metadata": {
         "cinatra": {
-          "riskClass": "read_only",
+          "riskClass": "write_safe",
           "requiresApproval": false,
           "packageName": "@cinatra-ai/list-curator-agent",
           "description": "The collecting half of the retired single step. It creates no list and adds no member; those wait behind list_gate. The child agents it dispatches can write CRM records themselves (discovery can create accounts and contacts), so such records can exist before list_gate, also when the list is then rejected."
@@ -1529,7 +1529,7 @@
           "renderer": "@cinatra-ai/list-curator-agent:final-list-review",
           "a2uiSurfaceId": "list-curator:final-list-review:input",
           "autoSkipWhenInputsPresent": false,
-          "description": "This is the list that will be created and these are the members the run will try to add to it. The list is created in the CRM only after you approve it here. Adding a member can fail; such a member is not on the list, and failures holds what the model that runs create reports it could not add. A reject ends the run and no list is created; CRM records that discovery already created stay.",
+          "description": "This is the list that will be created and these are the members the run will try to add to it. The list is created in the CRM only after you approve it here. Adding a member can fail when create runs, after this review; such a member is not on the list. Here failures holds what collect reports: one entry per row that could not be collected or added (create has not run yet). A reject ends the run and no list is created; CRM records that discovery already created stay.",
           "inputMessageSchema": {
             "type": "object",
             "x-renderer": "@cinatra-ai/list-curator-agent:final-list-review",
@@ -1835,7 +1835,7 @@
         {
           "title": "failures",
           "type": "array",
-          "description": "What could not be collected or added, one entry per failed row.",
+          "description": "What could not be collected or added. Either one entry per failed row (a candidate that could not be collected, or a member that could not be added), or, when the list itself could not be created, one entry with the stage crm-list-create and no row.",
           "json_schema": {
             "items": {
               "type": "object",
@@ -1870,7 +1870,7 @@
           "riskClass": "write_safe",
           "requiresApproval": false,
           "packageName": "@cinatra-ai/list-curator-agent",
-          "description": "The only step that creates the list and adds its members: it runs behind the list approval, so the list exists only once the person said yes. Adding a member can fail; such a member is not on the list, and failures holds what the model that runs create reports it could not add. CRM records that discovery created during collect can exist already."
+          "description": "The only step that creates the list and adds its members: it runs behind the list approval, so the list exists only once the person said yes. Adding a member can fail; such a member is not on the list. failures holds what the model that runs create reports: one entry per row that could not be collected or added, or, when the list itself could not be created, one entry with the stage crm-list-create and no row. CRM records that discovery created during collect can exist already."
         }
       }
     },
@@ -1901,7 +1901,7 @@
           "type": "string"
         }
       ],
-      "message": "{# pyagentspec-input-hint (do not remove): {{ listId }} {{ memberCount }} {{ failures }} {{ summary }} #}{% if not listId %}The list could not be created, so nothing was saved: {{ summary }}{% elif not memberCount %}The list was created but no members were added to it - nothing came back from the pages that were searched.{% else %}{{ memberCount }} members were added to the list. {{ summary }}{% endif %}{% if failures %} Some entries could not be collected: {{ failures | length }} of them; they are listed with the run.{% endif %}",
+      "message": "{# pyagentspec-input-hint (do not remove): {{ listId }} {{ memberCount }} {{ failures }} {{ summary }} #}{% set rows = '' %}{% set listErrors = '' %}{% if failures is not none %}{% set rows %}{% for f in failures %}{% if not (f is mapping and 'stage' in f and f['stage'] == 'crm-list-create') %}x{% endif %}{% endfor %}{% endset %}{% set listErrors %}{% for f in failures %}{% if f is mapping and 'stage' in f and f['stage'] == 'crm-list-create' %}x{% endif %}{% endfor %}{% endset %}{% endif %}{% if not listId %}{% if memberCount is not none and memberCount %}No list came back from the run, although it reported that members were added; it is not known whether the list was created.{% elif listErrors %}The list could not be created in the CRM; what went wrong is listed with the run.{% else %}The list was not created.{% endif %} Any accounts and contacts that were created while collecting the candidates stay in your CRM.{% if summary is not none and summary != '' %} {{ summary }}{% endif %}{% if failures is none %} It is not known whether any entry failed.{% elif rows %} {% if rows | length == 1 %}1 entry could not be collected or added; it is listed with the run.{% else %}{{ rows | length }} entries could not be collected or added; they are listed with the run.{% endif %}{% endif %}{% if listErrors and memberCount %} The run also reported an error while creating the list; it is listed with the run.{% endif %}{% elif memberCount is none %}The list was created, but the run did not say how many members were added to it.{% if summary is not none and summary != '' %} {{ summary }}{% endif %}{% if failures is none %} It is not known whether any entry failed.{% elif rows %} {% if rows | length == 1 %}1 entry could not be collected or added; it is listed with the run.{% else %}{{ rows | length }} entries could not be collected or added; they are listed with the run.{% endif %}{% endif %}{% if listErrors %} The run also reported an error while creating the list; it is listed with the run.{% endif %}{% elif not memberCount %}{% if rows %}The list was created, but no members were added to it: {% if rows | length == 1 %}1 entry could not be collected or added; it is listed with the run.{% else %}{{ rows | length }} entries could not be collected or added; they are listed with the run.{% endif %}{% elif failures is none %}The list was created, but no members were added to it. It is not known whether any entry failed.{% elif listErrors %}The list was created, but no members were added to it.{% else %}The list was created but no members were added to it - nothing came back from the pages that were searched.{% endif %}{% if listErrors %} The run also reported an error while creating the list; it is listed with the run.{% endif %}{% else %}{{ memberCount }} members were added to the list.{% if summary is not none and summary != '' %} {{ summary }}{% endif %}{% if failures is none %} It is not known whether any entry failed.{% elif rows %} {% if rows | length == 1 %}1 entry could not be collected or added; it is listed with the run.{% else %}{{ rows | length }} entries could not be collected or added; they are listed with the run.{% endif %}{% endif %}{% if listErrors %} The run also reported an error while creating the list; it is listed with the run.{% endif %}{% endif %}",
       "metadata": {
         "cinatra": {
           "purpose": "plain-language-curation-ending"
