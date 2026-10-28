@@ -3,8 +3,10 @@
 // start, for every answer in tests/fixtures/gate-answer-scenarios.json.
 //
 // The step trace below follows the pinned runtime's rules for the node kinds
-// this flow uses, and refuses any other kind or construct, so that a change it
-// cannot follow fails here instead of passing:
+// this flow uses, as listed here. It refuses another node kind, and its template
+// reader refuses most constructs it does not read (the reader's contract below
+// lists what it reads, refuses and ignores), so that a change it cannot follow
+// fails here instead of passing:
 //   - an ApiNode is recorded with its inputs and returns fixed outputs; no
 //     request is sent;
 //   - an InputMessageNode takes the next answer as its `userResponse`, and the
@@ -14,8 +16,8 @@
 //     flow pins (EXPECTED_PROGRAM below) through a JavaScript twin, and only for
 //     a text that the runtime's extractor reads whole: one strict JSON text
 //     without a code fence, as the wrap step writes it (see parseLikeTheStep);
-//   - a PluginTemplateNode renders its Jinja template (the subset below; its
-//     tojson filter writes a string as the runtime's Jinja does) and writes it
+//   - a PluginTemplateNode renders its template with the template reader below
+//     (not Jinja; its contract lists what it reads) and writes it
 //     as its one output, `output` or the name that its output_mapping gives;
 //     the trace follows only a node that declares exactly that output, as a
 //     string (see renderLikeTheStep);
@@ -59,8 +61,8 @@ const scenarios = JSON.parse(
 // ---------------------------------------------------------------------------
 // The template reader of this trace. It reads the decision steps' templates and
 // the closing message; it is not Jinja, and what it does is listed here. A test
-// named in quotes is in "the step trace reads the template the way the runtime
-// does" unless another block is named.
+// named in quotes is in "the template reader of the step trace" unless another
+// block is named.
 // Tags
 // - It splits text from {{ }} print tags and {% %} statement tags; a tag ends at
 //   its first closer, also inside a string literal (not driven by a test), and a
@@ -994,7 +996,7 @@ describe("the answers at the reviews drive the run", () => {
   }
 });
 
-describe("the step trace reads the template the way the runtime does", () => {
+describe("the template reader of the step trace", () => {
   it("applies whitespace control, set, if, elif, else and filters", () => {
     const t = "{%- set a = x | string | lower | replace(' ', '') -%} {%- if 'ab' in a and n | length > 1 -%} yes {%- elif a == '' -%}empty{%- else -%}no{%- endif -%}";
     expect(renderTemplate(t, { x: "A B", n: ["1", "2"] })).toBe("yes");
