@@ -9,8 +9,12 @@
  * Asserts:
  *   - Mounts render the listName Input, the memberRefs preview, and the
  *     Approve list + Cancel buttons.
- *   - Approve emits onChange({approved: true, listName}).
- *   - Cancel emits onChange({approved: false}).
+ *   - Approve emits onChange({approved: true, listName, userResponse}), the
+ *     userResponse carrying decision "approve" (issue 65: the run reads the
+ *     decision from the answer the host sends, and a renderer-authored
+ *     userResponse is that answer).
+ *   - Cancel emits onChange({approved: false, userResponse}), the userResponse
+ *     carrying decision "reject", so the run ends and nothing is written.
  *   - Approve is disabled when listName is empty.
  *   - Failures section renders when failures.length > 0.
  */
@@ -83,14 +87,18 @@ describe("ListCuratorFinalListRenderer", () => {
     expect(onChange.mock.calls[0][0]).toEqual({
       approved: true,
       listName: "YC W24 Founders",
+      userResponse: JSON.stringify({ decision: "approve", listName: "YC W24 Founders" }),
     });
   });
 
-  it("Cancel button calls onChange with approved:false", () => {
+  it("Cancel button calls onChange with approved:false and a reject answer", () => {
     const { onChange } = renderField();
     fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
     expect(onChange).toHaveBeenCalledTimes(1);
-    expect(onChange.mock.calls[0][0]).toEqual({ approved: false });
+    expect(onChange.mock.calls[0][0]).toEqual({
+      approved: false,
+      userResponse: JSON.stringify({ decision: "reject" }),
+    });
   });
 
   it("Approve list is disabled when listName is empty", () => {

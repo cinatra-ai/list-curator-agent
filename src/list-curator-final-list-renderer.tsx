@@ -115,13 +115,25 @@ export function ListCuratorFinalListRenderer({
 
   const approveDisabled = disabled === true || listName.trim() === "";
 
+  // The run reads its next step from the answer this screen sends (issue 65):
+  // the host forwards a renderer-authored `userResponse` to the paused review
+  // unchanged, and the flow's decision step reads `decision` from it. Without it
+  // the host sends an answer that carries no decision, which the flow reads as
+  // an approval, so a reject here would still let the run go on.
   const handleApprove = () => {
     if (listName.trim() === "") return;
-    onChangeRef.current({ approved: true, listName });
+    onChangeRef.current({
+      approved: true,
+      listName,
+      userResponse: JSON.stringify({ decision: "approve", listName }),
+    });
   };
 
   const handleCancel = () => {
-    onChangeRef.current({ approved: false });
+    onChangeRef.current({
+      approved: false,
+      userResponse: JSON.stringify({ decision: "reject" }),
+    });
   };
 
   return (

@@ -9,8 +9,10 @@
  * Asserts:
  *   - Mounts render the 3 fields (instructions, outputSchema textarea, seedUrls)
  *     plus the Approve + Reject buttons.
- *   - Approve emits onChange({approved: true, instructions, outputSchema, seedUrls}).
- *   - Reject emits onChange({approved: false}).
+ *   - Approve emits onChange({approved: true, instructions, outputSchema, seedUrls,
+ *     userResponse}), the userResponse carrying decision "approve" (issue 65).
+ *   - Reject emits onChange({approved: false, userResponse}), the userResponse
+ *     carrying decision "reject", so the run ends and no page is read.
  *   - Invalid JSON in the outputSchema textarea disables Approve and shows
  *     an inline error message.
  *   - Empty seedUrls disables Approve.
@@ -82,13 +84,23 @@ describe("ListCuratorScrapeSchemaRenderer", () => {
       "https://www.ycombinator.com/companies?batch=W24",
     ]);
     expect(payload.outputSchema).toMatchObject({ type: "object" });
+    const answer = JSON.parse((payload as unknown as { userResponse: string }).userResponse) as Record<string, unknown>;
+    expect(answer).toEqual({
+      decision: "approve",
+      instructions: payload.instructions,
+      outputSchema: payload.outputSchema,
+      seedUrls: payload.seedUrls,
+    });
   });
 
-  it("Reject button calls onChange with approved:false", () => {
+  it("Reject button calls onChange with approved:false and a reject answer", () => {
     const { onChange } = renderField();
     fireEvent.click(screen.getByRole("button", { name: /reject/i }));
     expect(onChange).toHaveBeenCalledTimes(1);
-    expect(onChange.mock.calls[0][0]).toEqual({ approved: false });
+    expect(onChange.mock.calls[0][0]).toEqual({
+      approved: false,
+      userResponse: JSON.stringify({ decision: "reject" }),
+    });
   });
 
   it("Approve button is disabled when outputSchema textarea has invalid JSON, and the inline error renders", () => {

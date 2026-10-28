@@ -8,7 +8,7 @@ Turn a natural-language ask like "Y Combinator W24 batch — get founder contact
 
 **Development:** run `node extension-kind-gate.mjs --package-root .` to validate the manifest and README. Orchestration logic: the declared `@cinatra-ai/list-curation-skill`; flow definition: `cinatra/oas.json`.
 
-**Troubleshooting:** `failures[]` entries capture per-row errors without aborting the run. `stage: "gate-1"` or `"gate-2"` means the operator rejected at a checkpoint. `stage: "crm-list-create"` means list creation failed and `listId` will be empty.
+**Troubleshooting:** `failures[]` entries capture per-row errors without aborting the run. A reject ends the run before the next step; revise reruns the proposing step. `stage: "crm-list-create"` means list creation failed and `listId` will be empty.
 
 ## Works with
 

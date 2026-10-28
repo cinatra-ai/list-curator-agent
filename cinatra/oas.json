@@ -109,10 +109,28 @@
       "$component_ref": "schema_gate"
     },
     {
+      "$component_ref": "schema_decision"
+    },
+    {
+      "$component_ref": "schema_branch"
+    },
+    {
+      "$component_ref": "schema_declined"
+    },
+    {
       "$component_ref": "collect"
     },
     {
       "$component_ref": "list_gate"
+    },
+    {
+      "$component_ref": "list_decision"
+    },
+    {
+      "$component_ref": "list_branch"
+    },
+    {
+      "$component_ref": "list_declined"
     },
     {
       "$component_ref": "create"
@@ -147,12 +165,76 @@
     },
     {
       "component_type": "ControlFlowEdge",
-      "name": "schema_gate_to_collect",
+      "name": "schema_gate_to_schema_decision",
       "from_node": {
         "$component_ref": "schema_gate"
       },
       "to_node": {
+        "$component_ref": "schema_decision"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "schema_decision_to_schema_branch",
+      "from_node": {
+        "$component_ref": "schema_decision"
+      },
+      "to_node": {
+        "$component_ref": "schema_branch"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "schema_branch_approve_to_collect",
+      "from_node": {
+        "$component_ref": "schema_branch"
+      },
+      "from_branch": "approve",
+      "to_node": {
         "$component_ref": "collect"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "schema_branch_revise_to_propose",
+      "from_node": {
+        "$component_ref": "schema_branch"
+      },
+      "from_branch": "revise",
+      "to_node": {
+        "$component_ref": "propose"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "schema_branch_reject_to_schema_declined",
+      "from_node": {
+        "$component_ref": "schema_branch"
+      },
+      "from_branch": "reject",
+      "to_node": {
+        "$component_ref": "schema_declined"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "schema_branch_default_to_schema_declined",
+      "from_node": {
+        "$component_ref": "schema_branch"
+      },
+      "from_branch": "default",
+      "to_node": {
+        "$component_ref": "schema_declined"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "schema_declined_to_end",
+      "from_node": {
+        "$component_ref": "schema_declined"
+      },
+      "to_node": {
+        "$component_ref": "end"
       }
     },
     {
@@ -167,12 +249,76 @@
     },
     {
       "component_type": "ControlFlowEdge",
-      "name": "list_gate_to_create",
+      "name": "list_gate_to_list_decision",
       "from_node": {
         "$component_ref": "list_gate"
       },
       "to_node": {
+        "$component_ref": "list_decision"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "list_decision_to_list_branch",
+      "from_node": {
+        "$component_ref": "list_decision"
+      },
+      "to_node": {
+        "$component_ref": "list_branch"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "list_branch_approve_to_create",
+      "from_node": {
+        "$component_ref": "list_branch"
+      },
+      "from_branch": "approve",
+      "to_node": {
         "$component_ref": "create"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "list_branch_revise_to_collect",
+      "from_node": {
+        "$component_ref": "list_branch"
+      },
+      "from_branch": "revise",
+      "to_node": {
+        "$component_ref": "collect"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "list_branch_reject_to_list_declined",
+      "from_node": {
+        "$component_ref": "list_branch"
+      },
+      "from_branch": "reject",
+      "to_node": {
+        "$component_ref": "list_declined"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "list_branch_default_to_list_declined",
+      "from_node": {
+        "$component_ref": "list_branch"
+      },
+      "from_branch": "default",
+      "to_node": {
+        "$component_ref": "list_declined"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "list_declined_to_end",
+      "from_node": {
+        "$component_ref": "list_declined"
+      },
+      "to_node": {
+        "$component_ref": "end"
       }
     },
     {
@@ -580,6 +726,78 @@
         "$component_ref": "end"
       },
       "destination_input": "dispatchedRuns"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "schema_gate_userResponse_to_schema_decision_answer",
+      "source_node": {
+        "$component_ref": "schema_gate"
+      },
+      "source_output": "userResponse",
+      "destination_node": {
+        "$component_ref": "schema_decision"
+      },
+      "destination_input": "answer"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "schema_decision_output_to_schema_branch_decision",
+      "source_node": {
+        "$component_ref": "schema_decision"
+      },
+      "source_output": "output",
+      "destination_node": {
+        "$component_ref": "schema_branch"
+      },
+      "destination_input": "decision"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "schema_gate_userResponse_to_propose_reviewAnswer",
+      "source_node": {
+        "$component_ref": "schema_gate"
+      },
+      "source_output": "userResponse",
+      "destination_node": {
+        "$component_ref": "propose"
+      },
+      "destination_input": "reviewAnswer"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "list_gate_userResponse_to_list_decision_answer",
+      "source_node": {
+        "$component_ref": "list_gate"
+      },
+      "source_output": "userResponse",
+      "destination_node": {
+        "$component_ref": "list_decision"
+      },
+      "destination_input": "answer"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "list_decision_output_to_list_branch_decision",
+      "source_node": {
+        "$component_ref": "list_decision"
+      },
+      "source_output": "output",
+      "destination_node": {
+        "$component_ref": "list_branch"
+      },
+      "destination_input": "decision"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "list_gate_userResponse_to_collect_reviewAnswer",
+      "source_node": {
+        "$component_ref": "list_gate"
+      },
+      "source_output": "userResponse",
+      "destination_node": {
+        "$component_ref": "collect"
+      },
+      "destination_input": "reviewAnswer"
     }
   ],
   "$referenced_components": {
@@ -745,8 +963,8 @@
       "http_method": "POST",
       "data": {
         "agent_id": "list-curator-agent",
-        "system": "You are a list-curator planner. Follow the SKILL.md planning steps ONLY. Resolve seedUrls from the intent when the caller supplied none, and propose the scrape outputSchema for the member kind asked for. Do NOT dispatch any child agent and do NOT write anything to the CRM. Return a single JSON object with {seedUrls, outputSchema, plan} - nothing else.",
-        "user": "Plan the curation for this intent.\nInputs:\n- intent: {{ intent }}\n- seedUrls: {{ seedUrls }}\n- targetMemberType: {{ targetMemberType }}  (must be 'contact' or 'account')\n- listName: {{ listName }}",
+        "system": "You are a list-curator planner. Follow the SKILL.md planning steps ONLY. Resolve seedUrls from the intent when the caller supplied none, and propose the scrape outputSchema for the member kind asked for. Do NOT dispatch any child agent and do NOT write anything to the CRM. Return a single JSON object with {seedUrls, outputSchema, plan} - nothing else. When reviewAnswer is not empty, the person sent your previous proposal back for revision: propose again and follow the note in reviewAnswer.",
+        "user": "Plan the curation for this intent.\nInputs:\n- intent: {{ intent }}\n- seedUrls: {{ seedUrls }}\n- targetMemberType: {{ targetMemberType }}  (must be 'contact' or 'account')\n- listName: {{ listName }}\n- reviewAnswer: {{ reviewAnswer }}",
         "agent_run_id": "{{ agent_run_id }}",
         "cinatra_llm": {
           "preferredProvider": "openai",
@@ -784,6 +1002,11 @@
         {
           "title": "agent_run_id",
           "type": "string"
+        },
+        {
+          "title": "reviewAnswer",
+          "type": "string",
+          "default": ""
         }
       ],
       "outputs": [
@@ -896,6 +1119,78 @@
         }
       ]
     },
+    "schema_decision": {
+      "component_type": "PluginTemplateNode",
+      "id": "schema_decision",
+      "name": "Read the schema review decision",
+      "metadata": {
+        "cinatra": {
+          "purpose": "read-the-decision-of-schema_gate",
+          "description": "Reads the decision from the answer given at schema_gate: reject, revise or approve. The decision field wins; a refusal sent without one is a reject; any other answer approves."
+        }
+      },
+      "inputs": [
+        {
+          "title": "answer",
+          "type": "string"
+        }
+      ],
+      "outputs": [
+        {
+          "title": "output",
+          "type": "string"
+        }
+      ],
+      "branches": [
+        "next"
+      ],
+      "input_mapping": {},
+      "output_mapping": {},
+      "template": "{%- set a = answer | string | replace(' ', '') | replace('\\n', '') | replace('\\r', '') | replace('\\t', '') | replace('\\\\', '') -%}{%- if '\"decision\":\"reject\"' in a -%}reject{%- elif '\"decision\":\"revise\"' in a -%}revise{%- elif '\"decision\":\"approve\"' in a -%}approve{%- elif '\"approved\":false' in a or '[Rejectedbyoperator]' in a -%}reject{%- else -%}approve{%- endif -%}",
+      "component_plugin_name": "NodesPlugin",
+      "component_plugin_version": "26.1.0"
+    },
+    "schema_branch": {
+      "component_type": "BranchingNode",
+      "id": "schema_branch",
+      "name": "Route on the schema review decision",
+      "metadata": {
+        "cinatra": {
+          "purpose": "route-the-run-on-the-decision-of-schema_gate",
+          "description": "approve continues, revise returns the run to the step that proposes the values, reject ends the run; a decision this step does not know goes where reject goes."
+        }
+      },
+      "inputs": [
+        {
+          "title": "decision",
+          "type": "string"
+        }
+      ],
+      "outputs": [],
+      "branches": [
+        "approve",
+        "default",
+        "reject",
+        "revise"
+      ],
+      "mapping": {
+        "approve": "approve",
+        "revise": "revise",
+        "reject": "reject"
+      }
+    },
+    "schema_declined": {
+      "component_type": "OutputMessageNode",
+      "id": "schema_declined",
+      "name": "Curation declined",
+      "inputs": [],
+      "message": "You declined the scrape plan, so the run stopped before collecting any member and before creating a list.",
+      "metadata": {
+        "cinatra": {
+          "purpose": "plain-language-curation-ending"
+        }
+      }
+    },
     "collect": {
       "component_type": "ApiNode",
       "id": "collect",
@@ -904,8 +1199,8 @@
       "http_method": "POST",
       "data": {
         "agent_id": "list-curator-agent",
-        "system": "You are a list-curator collector. Dispatch the child agents per the SKILL.md with agent_list, agent_run and agent_run_get, and read the CRM with crm_account_get. Build the candidate member rows against the APPROVED outputSchema. Do NOT create the list and do NOT add anyone to it - the list is created only after the person approves the members, by a later step. Return a single JSON object with {candidateMembers, dispatchedRuns, failures} - nothing else. dispatchedRuns lists one {runId, agent, status} entry per child run you started, so the person can open each of them. When you dispatch @cinatra-ai/web-scrape-agent with agent_run, its inputParams carry seedUrls, outputSchema and instructions, and outputSchemaSource as an empty object {} because the approved schema is handed over directly in outputSchema; a scrape dispatched without any of these four stops at a setup question nobody answers.",
-        "user": "Collect the members for this curation against the approved schema.\nInputs:\n- intent: {{ intent }}\n- seedUrls: {{ seedUrls }}\n- outputSchema: {{ outputSchema }}\n- targetMemberType: {{ targetMemberType }}",
+        "system": "You are a list-curator collector. Dispatch the child agents per the SKILL.md with agent_list, agent_run and agent_run_get, and read the CRM with crm_account_get. Build the candidate member rows against the APPROVED outputSchema. Do NOT create the list and do NOT add anyone to it - the list is created only after the person approves the members, by a later step. Return a single JSON object with {candidateMembers, dispatchedRuns, failures} - nothing else. dispatchedRuns lists one {runId, agent, status} entry per child run you started, so the person can open each of them. When you dispatch @cinatra-ai/web-scrape-agent with agent_run, its inputParams carry seedUrls, outputSchema and instructions, and outputSchemaSource as an empty object {} because the approved schema is handed over directly in outputSchema; a scrape dispatched without any of these four stops at a setup question nobody answers. When reviewAnswer is not empty, the person sent the previous candidate members back for revision: collect them again and follow the note in reviewAnswer.",
+        "user": "Collect the members for this curation against the approved schema.\nInputs:\n- intent: {{ intent }}\n- seedUrls: {{ seedUrls }}\n- outputSchema: {{ outputSchema }}\n- targetMemberType: {{ targetMemberType }}\n- reviewAnswer: {{ reviewAnswer }}",
         "agent_run_id": "{{ agent_run_id }}",
         "cinatra_llm": {
           "preferredProvider": "openai",
@@ -937,6 +1232,11 @@
         {
           "title": "agent_run_id",
           "type": "string"
+        },
+        {
+          "title": "reviewAnswer",
+          "type": "string",
+          "default": ""
         }
       ],
       "outputs": [
@@ -1023,7 +1323,7 @@
           "renderer": "@cinatra-ai/list-curator-agent:final-list-review",
           "a2uiSurfaceId": "list-curator:final-list-review:input",
           "autoSkipWhenInputsPresent": false,
-          "description": "Nothing is written to the CRM before you approve: this is the list that will be created and these are the members that will be added to it.",
+          "description": "This is the list that will be created and these are the members that will be added to it. The list is written to the CRM only when you approve: a reject ends the run, and a revise sends the members back to be collected again.",
           "inputMessageSchema": {
             "type": "object",
             "x-renderer": "@cinatra-ai/list-curator-agent:final-list-review",
@@ -1038,7 +1338,8 @@
               },
               "listName": {
                 "type": "string",
-                "title": "List name"
+                "title": "List name",
+                "readOnly": true
               },
               "dispatchedRuns": {
                 "type": "array",
@@ -1116,6 +1417,78 @@
           "type": "string"
         }
       ]
+    },
+    "list_decision": {
+      "component_type": "PluginTemplateNode",
+      "id": "list_decision",
+      "name": "Read the list review decision",
+      "metadata": {
+        "cinatra": {
+          "purpose": "read-the-decision-of-list_gate",
+          "description": "Reads the decision from the answer given at list_gate: reject, revise or approve. The decision field wins; a refusal sent without one is a reject; any other answer approves."
+        }
+      },
+      "inputs": [
+        {
+          "title": "answer",
+          "type": "string"
+        }
+      ],
+      "outputs": [
+        {
+          "title": "output",
+          "type": "string"
+        }
+      ],
+      "branches": [
+        "next"
+      ],
+      "input_mapping": {},
+      "output_mapping": {},
+      "template": "{%- set a = answer | string | replace(' ', '') | replace('\\n', '') | replace('\\r', '') | replace('\\t', '') | replace('\\\\', '') -%}{%- if '\"decision\":\"reject\"' in a -%}reject{%- elif '\"decision\":\"revise\"' in a -%}revise{%- elif '\"decision\":\"approve\"' in a -%}approve{%- elif '\"approved\":false' in a or '[Rejectedbyoperator]' in a -%}reject{%- else -%}approve{%- endif -%}",
+      "component_plugin_name": "NodesPlugin",
+      "component_plugin_version": "26.1.0"
+    },
+    "list_branch": {
+      "component_type": "BranchingNode",
+      "id": "list_branch",
+      "name": "Route on the list review decision",
+      "metadata": {
+        "cinatra": {
+          "purpose": "route-the-run-on-the-decision-of-list_gate",
+          "description": "approve continues, revise returns the run to the step that proposes the values, reject ends the run; a decision this step does not know goes where reject goes."
+        }
+      },
+      "inputs": [
+        {
+          "title": "decision",
+          "type": "string"
+        }
+      ],
+      "outputs": [],
+      "branches": [
+        "approve",
+        "default",
+        "reject",
+        "revise"
+      ],
+      "mapping": {
+        "approve": "approve",
+        "revise": "revise",
+        "reject": "reject"
+      }
+    },
+    "list_declined": {
+      "component_type": "OutputMessageNode",
+      "id": "list_declined",
+      "name": "Curation declined",
+      "inputs": [],
+      "message": "You declined the list, so no CRM list was created and no member was added to one.",
+      "metadata": {
+        "cinatra": {
+          "purpose": "plain-language-curation-ending"
+        }
+      }
     },
     "create": {
       "component_type": "ApiNode",
