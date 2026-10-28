@@ -57,8 +57,9 @@ const scenarios = JSON.parse(
 );
 
 // ---------------------------------------------------------------------------
-// A Jinja subset: {%- set / if / elif / else / endif -%}, text, and the
-// expressions and filters the decision steps use. Anything else throws.
+// A Jinja subset: {%- set / if / elif / else / endif -%}, {# comments #}, text,
+// and the expressions and filters the decision steps and the closing message
+// use. Anything else throws.
 
 function decodeLiteral(body) {
   // Jinja decodes a string literal with Python's unicode-escape codec.
@@ -360,6 +361,13 @@ function evaluate(node, scope) {
 }
 
 function renderTemplate(template, variables) {
+  // A comment writes nothing. It ends at the first "#}", also when it holds a
+  // print tag, as the closing message's input hint does. A comment with the
+  // "-" whitespace control is not followed.
+  template = template.replace(/\{#([\s\S]*?)#\}/g, (whole, body) => {
+    if (body.startsWith("-") || body.endsWith("-")) throw new Error("a comment with whitespace control is not followed");
+    return "";
+  });
   // Split into text and tags, applying the "-" whitespace control.
   const parts = [];
   const re = /(\{%-?|\{\{-?)([\s\S]*?)(-?%\}|-?\}\})/g;
@@ -665,7 +673,7 @@ function nextOf(nodeId, branch, controlEdges = control) {
   return edges[0].to_node.$component_ref;
 }
 
-function runFlow(answers, flow = oas) {
+function runFlow(answers, flow = oas, canned = CANNED) {
   const flowRefs = flow.$referenced_components;
   const flowControl = flow.control_flow_connections ?? [];
   const flowData = flow.data_flow_connections ?? [];
@@ -745,8 +753,8 @@ function runFlow(answers, flow = oas) {
       case "ApiNode": {
         const inputs = inputsOf(node);
         calls.push({ step: node.id, inputs });
-        if (!Object.hasOwn(CANNED, node.id)) throw new Error(`no fixed outputs for ${node.id}`);
-        record(CANNED[node.id]);
+        if (!Object.hasOwn(canned, node.id)) throw new Error(`no fixed outputs for ${node.id}`);
+        record(canned[node.id]);
         current = next(node.id);
         break;
       }
@@ -779,8 +787,7 @@ function runFlow(answers, flow = oas) {
         break;
       }
       case "OutputMessageNode":
-        inputsOf(node);
-        messages.push({ id: node.id, message: node.message });
+        messages.push({ id: node.id, message: node.message, inputs: inputsOf(node) });
         record({});
         current = next(node.id);
         break;
@@ -845,6 +852,66 @@ describe("the step trace reads the template the way the runtime does", () => {
   it("refuses a construct it does not follow", () => {
     expect(() => renderTemplate("{%- for x in y -%}{%- endfor -%}", { y: [] })).toThrow();
     expect(() => renderTemplate("{{ x | tojson }}", { x: 1 })).toThrow();
+    expect(() => renderTemplate("a {#- x #}b", {})).toThrow();
+    expect(() => renderTemplate("a {# x -#} b", {})).toThrow();
+  });
+
+  it("writes nothing for a comment, also one that holds a print tag", () => {
+    expect(renderTemplate("{# hint: {{ x }} #}a {# b #}c", {})).toBe("a c");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The closing message after create (issue 68). Both reviews approve, create
+// returns the given outputs, and the text is the closing step's message
+// rendered with the inputs that its data edges give it.
+
+describe("the closing message tells what happened after create", () => {
+  const closing = (createOutputs) => {
+    const result = runFlow(["[Approved by operator]", "[Approved by operator]"], oas, {
+      ...CANNED,
+      create: { ...CANNED.create, ...createOutputs },
+    });
+    expect(result.finished, "the run ends after the two approvals").toBe(true);
+    expect(result.calls.map((c) => c.step), "the steps that ran").toEqual(["propose", "collect", "create"]);
+    expect(result.messages.map((m) => m.id), "the closing step").toEqual(["curation_summary"]);
+    return renderTemplate(result.messages[0].message, result.messages[0].inputs);
+  };
+  const failure = (rowIndex) => ({ rowIndex, stage: "add", error: "The CRM refused the member." });
+
+  it("says that the list was not created and that records made while collecting stay, when no list came back", () => {
+    const text = closing({ listId: "", memberCount: 0, failures: [], summary: "The CRM refused the list name." });
+    expect(text).toBe(
+      "The list was not created. Any accounts and contacts that were created while collecting the candidates stay in your CRM. The CRM refused the list name.",
+    );
+    expect(text).not.toMatch(/nothing was saved/i);
+  });
+
+  it("also names the failed entries when no list came back", () => {
+    const text = closing({ listId: "", memberCount: 0, failures: [failure(0)], summary: "s" });
+    expect(text).toBe(
+      "The list was not created. Any accounts and contacts that were created while collecting the candidates stay in your CRM. s Some entries could not be collected or added: 1 of them; they are listed with the run.",
+    );
+  });
+
+  it("says that nothing came back when the list was created and no entry was added or failed", () => {
+    const text = closing({ listId: "L1", memberCount: 0, failures: [], summary: "s" });
+    expect(text).toBe("The list was created but no members were added to it - nothing came back from the pages that were searched.");
+  });
+
+  it("tells a run whose every entry failed apart from one that found nothing", () => {
+    const text = closing({ listId: "L1", memberCount: 0, failures: [failure(0), failure(1)], summary: "s" });
+    expect(text).toBe(
+      "The list was created, but no members were added to it: 2 entries could not be collected or added; they are listed with the run.",
+    );
+    expect(text).not.toMatch(/nothing came back/i);
+  });
+
+  it("counts the members added and the entries that failed", () => {
+    expect(closing({ listId: "L1", memberCount: 3, failures: [], summary: "s" })).toBe("3 members were added to the list. s");
+    expect(closing({ listId: "L1", memberCount: 3, failures: [failure(3)], summary: "s" })).toBe(
+      "3 members were added to the list. s Some entries could not be collected or added: 1 of them; they are listed with the run.",
+    );
   });
 });
 
