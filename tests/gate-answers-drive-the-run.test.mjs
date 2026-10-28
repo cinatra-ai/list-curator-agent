@@ -14,10 +14,14 @@
 //     a text that the runtime's extractor reads whole: one strict JSON text
 //     without a code fence, as the wrap step writes it (see parseLikeTheStep);
 //   - a PluginTemplateNode renders its Jinja template (the subset below; its
-//     tojson filter writes a string as the runtime's Jinja does);
+//     tojson filter writes a string as the runtime's Jinja does) and writes it
+//     as its one output, `output` or the name that its output_mapping gives;
+//     the trace follows only a node that declares exactly that output, as a
+//     string (see renderLikeTheStep);
 //   - a BranchingNode follows the branch that its mapping names for the value,
 //     else "default";
-//   - an input takes the newest value of a data edge into it, else its default.
+//   - an input takes the newest value of a data edge into it, else its default;
+//     an edge that reads an output its source did not write throws.
 //
 // The same scenarios were run through the pinned runtime (wayflowcore 26.1.2)
 // with a stub bridge; the steps and the closing text matched these
@@ -593,6 +597,25 @@ function parseLikeTheStep(node, text) {
   return { verdict: jqVerdict(jqStrings(JSON.parse(text)), snapshot) };
 }
 
+/**
+ * What a template step outputs. The runtime's template step writes one string
+ * output, `output`, under the name that the node's output_mapping gives it. The
+ * pinned loader refuses a node that declares another output, a second output
+ * or none, and the step fails when the declared output is an integer (records
+ * of fold 7). The trace follows only a node that declares exactly that one
+ * output, as a string; any other declaration or mapping throws.
+ */
+function renderLikeTheStep(node, variables) {
+  const mapping = node.output_mapping ?? {};
+  if (Object.keys(mapping).some((k) => k !== "output")) throw new Error(`${node.id}: an output_mapping this trace does not follow`);
+  const name = mapping.output ?? "output";
+  const declared = (node.outputs ?? []).map((o) => `${o.title}:${o.type}`);
+  if (!sameList(declared, [`${name}:string`])) {
+    throw new Error(`${node.id} declares the outputs [${declared.join(", ")}]; the runtime's template step writes only ${name}:string`);
+  }
+  return { [name]: renderTemplate(node.template, variables) };
+}
+
 // ---------------------------------------------------------------------------
 // The step trace.
 
@@ -614,15 +637,19 @@ const CANNED = {
   create: { listId: "L1", memberCount: 1, accountsCreated: 0, contactsCreated: 1, failures: [], summary: "s" },
 };
 
-function nextOf(nodeId, branch) {
-  const edges = control.filter(
+function nextOf(nodeId, branch, controlEdges = control) {
+  const edges = controlEdges.filter(
     (e) => e.from_node.$component_ref === nodeId && (branch === undefined ? !e.from_branch || e.from_branch === "next" : e.from_branch === branch),
   );
   if (edges.length !== 1) throw new Error(`${nodeId} has ${edges.length} edges for ${branch ?? "next"}`);
   return edges[0].to_node.$component_ref;
 }
 
-function runFlow(answers) {
+function runFlow(answers, flow = oas) {
+  const flowRefs = flow.$referenced_components;
+  const flowControl = flow.control_flow_connections ?? [];
+  const flowData = flow.data_flow_connections ?? [];
+  const next = (nodeId, branch) => nextOf(nodeId, branch, flowControl);
   const queue = [...answers];
   const produced = new Map(); // nodeId -> { values, at }
   let clock = 0;
@@ -633,10 +660,13 @@ function runFlow(answers) {
     const values = {};
     for (const input of node.inputs ?? []) {
       let best = null;
-      for (const e of data) {
+      for (const e of flowData) {
         if (e.destination_node.$component_ref !== node.id || e.destination_input !== input.title) continue;
         const source = produced.get(e.source_node.$component_ref);
-        if (source && e.source_output in source.values && (!best || source.at > best.at)) {
+        if (source && !(e.source_output in source.values)) {
+          throw new Error(`${node.id}.${input.title}: the edge ${e.name} reads ${e.source_output}, which ${e.source_node.$component_ref} does not write`);
+        }
+        if (source && (!best || source.at > best.at)) {
           best = { at: source.at, value: source.values[e.source_output] };
         }
       }
@@ -647,9 +677,9 @@ function runFlow(answers) {
     return values;
   }
 
-  let current = oas.start_node.$component_ref;
+  let current = flow.start_node.$component_ref;
   for (let steps = 0; steps < 200; steps += 1) {
-    const node = refs[current];
+    const node = flowRefs[current];
     if (!node) throw new Error(`unknown node ${current}`);
     const record = (values) => produced.set(node.id, { values, at: (clock += 1) });
     switch (node.component_type) {
@@ -657,7 +687,7 @@ function runFlow(answers) {
         const values = {};
         for (const input of node.inputs) values[input.title] = input.title in START_INPUTS ? START_INPUTS[input.title] : input.default;
         record(values);
-        current = nextOf(node.id);
+        current = next(node.id);
         break;
       }
       case "ApiNode": {
@@ -665,25 +695,25 @@ function runFlow(answers) {
         calls.push({ step: node.id, inputs });
         if (!CANNED[node.id]) throw new Error(`no fixed outputs for ${node.id}`);
         record(CANNED[node.id]);
-        current = nextOf(node.id);
+        current = next(node.id);
         break;
       }
       case "InputMessageNode": {
         inputsOf(node);
         if (queue.length === 0) return { finished: false, pausedAt: node.id, calls, messages };
         record({ userResponse: queue.shift() });
-        current = nextOf(node.id);
+        current = next(node.id);
         break;
       }
       case "PluginExtractNode": {
         const { text } = inputsOf(node);
         record(parseLikeTheStep(node, String(text)));
-        current = nextOf(node.id);
+        current = next(node.id);
         break;
       }
       case "PluginTemplateNode": {
-        record({ output: renderTemplate(node.template, inputsOf(node)) });
-        current = nextOf(node.id);
+        record(renderLikeTheStep(node, inputsOf(node)));
+        current = next(node.id);
         break;
       }
       case "BranchingNode": {
@@ -692,13 +722,13 @@ function runFlow(answers) {
         if (keys.length !== 1) throw new Error(`${node.id} reads ${keys.length} inputs`);
         const value = String(inputs[keys[0]]);
         const branch = Object.prototype.hasOwnProperty.call(node.mapping ?? {}, value) ? node.mapping[value] : "default";
-        current = nextOf(node.id, branch);
+        current = next(node.id, branch);
         break;
       }
       case "OutputMessageNode":
         inputsOf(node);
         messages.push({ id: node.id, message: node.message });
-        current = nextOf(node.id);
+        current = next(node.id);
         break;
       case "EndNode":
         return { finished: queue.length === 0, leftOver: queue.length, calls, messages };
@@ -852,5 +882,64 @@ describe("the step trace reads the parse step the way the runtime does", () => {
     expect(read(j({ decision: "approve", approved: true, text: "[Rejected by operator]" }))).toBe("unknown");
     expect(read(envelope(j({ decision: "approve", approved: true, text: "[Rejected by operator]" })))).toBe("unknown");
     expect(read(j({ decision: "approve", approved: true, text: "[Approved by operator]" }))).toBe("approve");
+  });
+});
+
+describe("the step trace follows the declared outputs of a template step the way the runtime does", () => {
+  // The pinned runtime's template step writes one string output, `output`
+  // (renamed by the node's output_mapping, if it has one). The loader refuses
+  // a node that declares any other output, or none; the step fails when the
+  // declared output is not a string; and a data edge that reads an output its
+  // source does not write is refused when the flow is loaded. Records of
+  // fold 7, mutations/runtime-contract-mutations.log.
+  const approveBoth = ['{"decision":"approve"}', '{"decision":"approve"}'];
+  const withWrap = (change) => {
+    const flow = structuredClone(oas);
+    const node = flow.$referenced_components.schema_answer_wrap;
+    const edge = flow.data_flow_connections.find(
+      (e) => e.source_node.$component_ref === "schema_answer_wrap" && e.destination_node.$component_ref === "schema_decision_parse",
+    );
+    change(node, edge);
+    return flow;
+  };
+
+  it("follows each template step's one declared string output, also when the node renames it", () => {
+    for (const id of ["schema_answer_wrap", "schema_decision", "list_answer_wrap", "list_decision"]) {
+      expect(refs[id].outputs, id).toEqual([{ title: "output", type: "string" }]);
+    }
+    expect(runFlow(approveBoth).calls.map((c) => c.step)).toEqual(["propose", "collect", "create"]);
+    const renamed = withWrap((node, edge) => {
+      node.output_mapping = { output: "wrapped" };
+      node.outputs[0].title = "wrapped";
+      edge.source_output = "wrapped";
+    });
+    expect(runFlow(approveBoth, renamed).calls.map((c) => c.step)).toEqual(["propose", "collect", "create"]);
+  });
+
+  it("refuses a template step whose declared outputs are not the one string output the runtime writes", () => {
+    const broken = {
+      "renamed declaration, edge unchanged": (node) => {
+        node.outputs[0].title = "wrapped";
+      },
+      "a second output": (node) => {
+        node.outputs.push({ title: "extra", type: "string" });
+      },
+      "no output": (node) => {
+        node.outputs = [];
+      },
+      "not a string": (node) => {
+        node.outputs[0].type = "integer";
+      },
+    };
+    for (const [name, change] of Object.entries(broken)) {
+      expect(() => runFlow(approveBoth, withWrap(change)), name).toThrow(/declares the outputs/);
+    }
+  });
+
+  it("refuses a data edge that reads an output its source does not write", () => {
+    const flow = withWrap((node, edge) => {
+      edge.source_output = "wrapped";
+    });
+    expect(() => runFlow(approveBoth, flow)).toThrow(/does not write/);
   });
 });
