@@ -101,6 +101,12 @@ export function ListCuratorScrapeSchemaRenderer({
     schemaError !== null ||
     seedUrls.filter((u) => u.trim() !== "").length === 0;
 
+  // The run reads its next step from the answer this screen sends (issue 65):
+  // the host forwards a renderer-authored `userResponse` to the paused review as
+  // the answer text (inside the attachment envelope when attachments are
+  // pending), and the flow's decision step reads its `decision` field. Without
+  // it the host sends an answer that carries no decision, which the flow reads
+  // as an approval, so a reject here would still let the run go on.
   const handleApprove = () => {
     if (schemaError !== null) return;
     let parsedSchema: Record<string, unknown>;
@@ -109,16 +115,26 @@ export function ListCuratorScrapeSchemaRenderer({
     } catch {
       return;
     }
+    const approvedSeedUrls = seedUrls.filter((u) => u.trim() !== "");
     onChangeRef.current({
       approved: true,
       instructions,
       outputSchema: parsedSchema,
-      seedUrls: seedUrls.filter((u) => u.trim() !== ""),
+      seedUrls: approvedSeedUrls,
+      userResponse: JSON.stringify({
+        decision: "approve",
+        instructions,
+        outputSchema: parsedSchema,
+        seedUrls: approvedSeedUrls,
+      }),
     });
   };
 
   const handleReject = () => {
-    onChangeRef.current({ approved: false });
+    onChangeRef.current({
+      approved: false,
+      userResponse: JSON.stringify({ decision: "reject" }),
+    });
   };
 
   const handleAddUrl = () => {

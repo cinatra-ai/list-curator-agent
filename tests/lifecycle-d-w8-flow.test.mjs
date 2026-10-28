@@ -26,6 +26,38 @@ const dataEdges = (oas.data_flow_connections ?? []).map((e) => [
 ]);
 const hasDataEdge = (from, to) => dataEdges.some(([f, t]) => f === from && t === to);
 
+/**
+ * True when the approve branch of the step that routes on `gate`'s answer leads
+ * to `to` (issue 65: a review's answer decides the next step, so no edge runs
+ * from a review straight to the step it guards). The answer reaches that
+ * BranchingNode over data edges through steps that read it without a model:
+ * the wrap, parse and decision steps (template and parse nodes only).
+ */
+function approveLeads(gate, to) {
+  const READS = new Set(["PluginTemplateNode", "PluginExtractNode"]);
+  const flow = oas.data_flow_connections ?? [];
+  let readers = flow
+    .filter((e) => e.source_node.$component_ref === gate && e.source_output === "userResponse")
+    .map((e) => e.destination_node.$component_ref)
+    .filter((id) => READS.has(refs[id]?.component_type));
+  const seen = new Set(readers);
+  for (let frontier = readers; frontier.length > 0; ) {
+    frontier = flow
+      .filter((e) => frontier.includes(e.source_node.$component_ref))
+      .map((e) => e.destination_node.$component_ref)
+      .filter((id) => READS.has(refs[id]?.component_type) && !seen.has(id));
+    frontier.forEach((id) => seen.add(id));
+  }
+  readers = [...seen];
+  const branches = flow
+    .filter((e) => readers.includes(e.source_node.$component_ref))
+    .map((e) => e.destination_node.$component_ref)
+    .filter((id) => refs[id]?.component_type === "BranchingNode");
+  return (oas.control_flow_connections ?? []).some(
+    (e) => branches.includes(e.from_node.$component_ref) && e.from_branch === "approve" && e.to_node.$component_ref === to,
+  );
+}
+
 /** Every node id reachable from start, in the order the run walks them. */
 function walk() {
   const order = [];
@@ -65,7 +97,7 @@ test("(11) the list approval guards the list's creation and its membership", () 
   const create = order.indexOf("create");
   assert.ok(gate > -1, "the list approval is missing");
   assert.ok(create > gate, "the list is created before the person approves it");
-  assert.ok(hasEdge("list_gate", "create"), "nothing connects the approval to the creation");
+  assert.ok(approveLeads("list_gate", "create"), "nothing connects the approval to the creation");
   const createNode = refs.create;
   const body = JSON.stringify(createNode.data);
   assert.match(body, /crm_list_create/, "the creation step does not create the list");
@@ -83,7 +115,7 @@ test("(11) the scrape schema is approved before anything is collected", () => {
   const order = walk();
   assert.ok(order.indexOf("schema_gate") < order.indexOf("collect"), "collection starts before the schema is approved");
   assert.ok(hasEdge("propose", "schema_gate"));
-  assert.ok(hasEdge("schema_gate", "collect"));
+  assert.ok(approveLeads("schema_gate", "collect"));
   const gate = refs.schema_gate;
   assert.ok(gate.metadata.cinatra.inputMessageSchema.properties.outputSchema, "the schema review is not fed the schema");
   assert.ok(hasDataEdge("propose.outputSchema", "schema_gate.outputSchema"));
