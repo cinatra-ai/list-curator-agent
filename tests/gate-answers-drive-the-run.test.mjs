@@ -1072,6 +1072,24 @@ describe("the closing message tells what happened after create", () => {
     expect(text).toBe(`${COUNT_UNKNOWN} ${UNKNOWN}`);
     expect(text).not.toMatch(/None/);
   });
+
+  it("names a reported list error after a null member count, and counts no entry for it", () => {
+    const text = closing({ listId: "L1", memberCount: null, failures: [listError], summary: "s" });
+    expect(text).toBe(`${COUNT_UNKNOWN} s ${ALSO}`);
+    expect(text).not.toMatch(/entr(y|ies) could not|no members|nothing came back/);
+  });
+
+  it("counts the row failures and names a reported list error apart when the list came back with no member", () => {
+    const text = closing({ listId: "L1", memberCount: 0, failures: [failure(0), listError, failure(1)], summary: "s" });
+    expect(text).toBe(`The list was created, but no members were added to it: ${TWO} ${ALSO}`);
+    expect(text).not.toMatch(/nothing came back/);
+  });
+
+  it("names a reported list error after the members added, with no row failure", () => {
+    const text = closing({ listId: "L1", memberCount: 3, failures: [listError], summary: "s" });
+    expect(text).toBe(`3 members were added to the list. s ${ALSO}`);
+    expect(text).not.toMatch(/entr(y|ies) could not/);
+  });
 });
 
 describe("the step trace reads the parse step the way the runtime does", () => {
