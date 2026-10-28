@@ -1716,5 +1716,32 @@
     ],
     "ends": "curation_summary",
     "message": "1 members were added to the list. s"
+  },
+  {
+    "name": "list review: approve whose note holds a lone low surrogate, as a character and as an escape",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"approve\",\"note\":\"a\udc00b\\udc01c\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s"
+  },
+  {
+    "name": "list review: approve in the envelope whose attachment holds NaN",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"text\":\"{\\\"decision\\\":\\\"approve\\\"}\",\"attachments\":[{\"artifactId\":\"a\",\"representationRevisionId\":\"r\",\"digest\":\"d\",\"mime\":\"text/plain\",\"originKind\":\"upload\",\"filename\":\"notes.txt\",\"size\":NaN}]}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ],
+    "ends": "list_not_understood",
+    "message": "The answer to the list review was not understood, so no CRM list was created and no member was added to one."
   }
 ]

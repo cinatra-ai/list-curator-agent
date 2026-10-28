@@ -487,26 +487,24 @@ function EXPECTED_PROGRAM(snapshot) {
 const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const sameList = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
 
-/** Throws on a lone surrogate: jq refuses its escape, so the runtime's result is not followed here. */
-function refuseLoneSurrogates(v) {
-  const check = (x) => {
-    if (typeof x === "string" && !/^(?:[^\ud800-\udfff]|[\ud800-\udbff][\udc00-\udfff])*$/.test(x)) {
-      throw new Error("a lone surrogate is not followed");
-    }
-    if (Array.isArray(x)) x.forEach(check);
-    else if (isObject(x)) {
-      for (const k of Object.keys(x)) {
-        check(k);
-        check(x[k]);
-      }
-    }
-  };
-  check(v);
+/**
+ * The strings as the pinned jq (jq 1.13.0 for Python) decodes them: a lone low surrogate (U+DC00 to U+DFFF)
+ * becomes U+FFFD; a lone high surrogate (U+D800 to U+DBFF) makes jq raise an error, so the runtime's result
+ * is not followed here and this throws.
+ */
+function jqStrings(v) {
+  if (typeof v === "string") {
+    if (/[\ud800-\udbff](?![\udc00-\udfff])/.test(v)) throw new Error("a lone high surrogate is not followed");
+    return v.replace(/(?<![\ud800-\udbff])[\udc00-\udfff]/g, "\ufffd");
+  }
+  if (Array.isArray(v)) return v.map(jqStrings);
+  if (isObject(v)) return Object.fromEntries(Object.entries(v).map(([k, x]) => [jqStrings(k), jqStrings(x)]));
+  return v;
 }
 
 /** The twin of `strict`: [value] for a strict JSON text without a duplicate key, else []. */
-function strictParse(raw) {
-  refuseLoneSurrogates(raw);
+function strictParse(text) {
+  const raw = jqStrings(text);
   const tokens = raw.match(new RegExp(TOKEN, "g")) ?? [];
   if (tokens.join("") !== raw) return [];
   const stack = [];
@@ -524,7 +522,7 @@ function strictParse(raw) {
       key = null;
     } else if (t === ":") {
       if (key === null || stack.length === 0 || !Array.isArray(stack.at(-1))) return [];
-      const k = JSON.parse(key);
+      const k = jqStrings(JSON.parse(key));
       if (stack.at(-1).includes(k)) return [];
       stack.at(-1).push(k);
       key = null;
@@ -537,8 +535,7 @@ function strictParse(raw) {
   } catch {
     return [];
   }
-  refuseLoneSurrogates(value);
-  return [value];
+  return [jqStrings(value)];
 }
 
 /** The JavaScript twin of EXPECTED_PROGRAM, for the wrapped value the parse step reads. */
@@ -593,7 +590,7 @@ function parseLikeTheStep(node, text) {
   if (text.includes("```")) throw new Error(`${node.id}: the extractor would split this text on a code fence`);
   if (/^\s*\[?\s*(?:json|JSON)/.test(text)) throw new Error(`${node.id}: the extractor would strip a label from this text`);
   if (strictParse(text).length !== 1) throw new Error(`${node.id}: the extractor would repair this text`);
-  return { verdict: jqVerdict(JSON.parse(text), snapshot) };
+  return { verdict: jqVerdict(jqStrings(JSON.parse(text)), snapshot) };
 }
 
 // ---------------------------------------------------------------------------
@@ -789,9 +786,15 @@ describe("the step trace reads the parse step the way the runtime does", () => {
     expect(() => parseLikeTheStep(node, '{"answer": "a", "answer": "b"}')).toThrow();
   });
 
-  it("refuses a lone surrogate, which jq does not read", () => {
+  it("refuses a lone high surrogate, which jq does not read, and reads a lone low surrogate as U+FFFD", () => {
     expect(() => read('{"decision":"approve","note":"\\ud800"}')).toThrow();
+    expect(() => read('{"decision":"approve","note":"\\udc00\\ud800"}')).toThrow();
     expect(() => read("\ud800")).toThrow();
+    expect(read('{"decision":"approve","note":"\\udc00"}')).toBe("approve");
+    expect(read('{"decision":"approve","note":"\\ud800\\udc00"}')).toBe("approve");
+    // Two keys that jq reads as the same U+FFFD are a key twice.
+    expect(read('{"decision":"approve","\\udc00":1,"\\udc01":2}')).toBe("unknown");
+    expect(read('{"decision":"approve","\\udc00":1}')).toBe("approve");
   });
 
   it("reads the top-level decision and the envelope's text only", () => {
