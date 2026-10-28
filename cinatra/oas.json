@@ -1529,7 +1529,7 @@
           "renderer": "@cinatra-ai/list-curator-agent:final-list-review",
           "a2uiSurfaceId": "list-curator:final-list-review:input",
           "autoSkipWhenInputsPresent": false,
-          "description": "This is the list that will be created and these are the members the run will try to add to it. The list is created in the CRM only after you approve it here. Adding a member can fail; such a member is not on the list. failures holds what the model that runs create reports: one entry per row that could not be collected or added, or, when the list itself could not be created, one entry with the stage crm-list-create and no row. A reject ends the run and no list is created; CRM records that discovery already created stay.",
+          "description": "This is the list that will be created and these are the members the run will try to add to it. The list is created in the CRM only after you approve it here. Adding a member can fail when create runs, after this review; such a member is not on the list. Here failures holds what collect reports: one entry per row that could not be collected or added (create has not run yet). A reject ends the run and no list is created; CRM records that discovery already created stay.",
           "inputMessageSchema": {
             "type": "object",
             "x-renderer": "@cinatra-ai/list-curator-agent:final-list-review",

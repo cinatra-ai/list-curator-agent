@@ -57,9 +57,23 @@ const scenarios = JSON.parse(
 );
 
 // ---------------------------------------------------------------------------
-// A Jinja subset: {%- set / if / elif / else / endif -%}, {# comments #}, text,
-// and the expressions and filters the decision steps and the closing message
-// use. Anything else throws.
+// A Jinja subset, for the decision steps and the closing message:
+// - text, print tags {{ }}, and comments {# #} (a comment with "-", and
+//   comment-looking text inside a tag, are refused); the "-" whitespace
+//   control on print and statement tags;
+// - statements: set NAME = expr; the block set NAME ... endset (its own scope);
+//   if / elif / else / endif; for NAME in expr ... endfor over a list (no else,
+//   filter, recursion, loop variable or set inside it); a constant name
+//   (true, false, none, in either case) is refused as a target, and endset,
+//   endfor, endif and else must hold their word alone;
+// - expressions: string and number literals, true/false (either case), names,
+//   ( ), list literals, x if t else y, or / and / not, == != < > <= >=, in / not in,
+//   the tests is (not) none and is (not) mapping, and x[key] with a string key
+//   on a dict that holds it;
+// - filters: string, lower, replace, truncate, unique, list, length, first,
+//   tojson, each only in the forms its function follows.
+// The reader is written to throw on a construct outside this list; the refusal
+// cases below drive the forms that are known to read differently in Jinja.
 
 function decodeLiteral(body) {
   // Jinja decodes a string literal with Python's unicode-escape codec.
@@ -433,6 +447,10 @@ function renderTemplate(template, variables) {
   }
 
   // Build the statement tree.
+  // Jinja parses these names as constants and refuses them as a set or for target.
+  const assignable = (name) => {
+    if (["true", "false", "none", "True", "False", "None"].includes(name)) throw new Error(`can't assign to the constant ${name}`);
+  };
   let pos = 0;
   let loopDepth = 0;
   function block(stops) {
@@ -462,6 +480,7 @@ function renderTemplate(template, variables) {
         if (loopDepth > 0) throw new Error("a set inside a loop is not followed");
         const bm = /^set\s+([A-Za-z_][A-Za-z0-9_]*)$/.exec(part.body);
         if (bm) {
+          assignable(bm[1]);
           // The block form: the name takes the text the body writes.
           const inner = block(["endset"]);
           pos += 1;
@@ -470,11 +489,13 @@ function renderTemplate(template, variables) {
         }
         const sm = /^set\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([\s\S]+)$/.exec(part.body);
         if (!sm) throw new Error(`set not followed: ${part.body}`);
+        assignable(sm[1]);
         body.push({ k: "set", name: sm[1], expr: parseExpression(sm[2]) });
       } else if (word === "for") {
         // One loop name over a list; no else, no filter, no recursion, no loop variable.
         const fm = /^for\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+([\s\S]+)$/.exec(part.body);
         if (!fm || /\s(if|recursive)\s|\s(if|recursive)$/.test(fm[2]) || fm[1] === "loop") throw new Error(`for not followed: ${part.body}`);
+        assignable(fm[1]);
         loopDepth += 1;
         const inner = block(["endfor", "else"]);
         loopDepth -= 1;
@@ -510,11 +531,17 @@ function renderTemplate(template, variables) {
       else if (st.k === "print") out += pyStr(evaluate(st.expr, scope));
       else if (st.k === "set") scope[st.name] = evaluate(st.expr, scope);
       else if (st.k === "blockset") {
+        // Jinja runs the block in its own scope: a set inside it does not reach
+        // past endset, and only the captured text is assigned.
         const outer = out;
+        const kept = { ...scope };
         out = "";
         run(st.body);
-        scope[st.name] = out;
+        const text = out;
         out = outer;
+        for (const name of Object.keys(scope)) delete scope[name];
+        Object.assign(scope, kept);
+        scope[st.name] = text;
       } else if (st.k === "for") {
         const items = evaluate(st.iter, scope);
         if (!Array.isArray(items)) throw new Error("a for over anything but a list is not followed");
@@ -929,6 +956,22 @@ describe("the step trace reads the template the way the runtime does", () => {
       '"a\\"b\\\\\\u003c\\u003e\\u0026\\u0027`\\u007f\\u00e9\\ud83d\\ude00\\n\\u0001"',
     );
     expect(renderTemplate(refs.list_answer_wrap.template, { answer: "x```y" })).toBe('{"answer": "x\\u0060\\u0060\\u0060y" }');
+  });
+
+  it("refuses a constant name as an assignment target, as Jinja does", () => {
+    for (const name of ["true", "false", "none", "True", "False", "None"]) {
+      expect(() => renderTemplate(`{% for ${name} in y %}x{% endfor %}`, { y: [1] })).toThrow();
+      expect(() => renderTemplate(`{% set ${name} %}x{% endset %}ok`, {})).toThrow();
+      expect(() => renderTemplate(`{% set ${name} = 1 %}ok`, {})).toThrow();
+    }
+  });
+
+  it("keeps a set inside a block set to that block, as Jinja does", () => {
+    // The pinned runtime renders "1-a" and "1-2", and refuses d outside its block.
+    expect(renderTemplate("{% set x = 1 %}{% set c %}{% set x = 2 %}a{% endset %}{{ x | string }}-{{ c | string }}", {})).toBe("1-a");
+    expect(renderTemplate("{% set x = 1 %}{% set c %}{% set x = 2 %}{{ x | string }}{% endset %}{{ x | string }}-{{ c | string }}", {})).toBe("1-2");
+    expect(renderTemplate("{% set c %}{% for f in y %}{{ f | string }}{% endfor %}{% endset %}{{ c | string }}", { y: [1, 2] })).toBe("12");
+    expect(() => renderTemplate("{% set c %}{% set d %}b{% endset %}{{ d | string }}a{% endset %}{{ c | string }}-{{ d | string }}", {})).toThrow();
   });
 
   it("refuses a malformed closing tag, as Jinja does", () => {
