@@ -7,7 +7,8 @@
 // cannot follow fails here instead of passing:
 //   - an ApiNode is recorded with its inputs and returns fixed outputs; no
 //     request is sent;
-//   - an InputMessageNode takes the next answer as its `userResponse`;
+//   - an InputMessageNode takes the next answer as its `userResponse`, and the
+//     run pauses there when no answer is left;
 //   - a PluginExtractNode (the runtime's ExtractValueFromJsonStep) parses its
 //     text and runs its jq program; the trace follows only the program this
 //     flow pins (EXPECTED_PROGRAM below) through a JavaScript twin, and only for
@@ -20,15 +21,22 @@
 //     string (see renderLikeTheStep);
 //   - a BranchingNode follows the branch that its mapping names for the value,
 //     else "default";
-//   - every step but the end records what it writes when it runs, a branching
-//     or output message step an empty set, and a step that writes other outputs
-//     than it declares (a StartNode, which declares none: its inputs) throws;
-//   - an input takes the newest value of a data edge into it, else its default;
-//     when a step runs, a data edge into it that names an input it does not
+//   - every step but the end records what it writes when it completes (an input
+//     message step that pauses for an answer returns before it records), a
+//     branching or output message step an empty set, and a step whose written
+//     outputs differ from the ones it declares throws (for a StartNode that
+//     declares no outputs, the declared ones are its inputs);
+//   - an input of a step other than the start takes the newest value of a data
+//     edge into it from a step that has run, else its default, and the trace
+//     throws when it has neither; a start input takes the run's input
+//     (START_INPUTS below), else its default (undefined when it has none);
+//   - when a step runs, a data edge into it that names an input it does not
 //     declare throws, and so does a data edge into it from a step that has run
-//     that reads an output that step did not write (an edge from a step that
-//     has not run yet gives no value and is not checked; neither is an edge
-//     into a step that does not run);
+//     that reads an output that step did not write; the start checks the edges
+//     into it after it records, so an edge from the start into the start is
+//     checked too. The output that an edge reads from a step that has not run
+//     yet is not checked (the edge gives no value), and no edge into a step
+//     that does not run is checked;
 //   - a name that the flow gives (a step, an output, an input, a start input,
 //     a parse step, a template variable or filter) is looked up only among an
 //     object's own properties, never among the ones every JavaScript object
@@ -668,22 +676,37 @@ function runFlow(answers, flow = oas) {
   const calls = [];
   const messages = [];
 
-  function inputsOf(node) {
+  // The data edges into a step, by name: an edge into an input that the step
+  // does not declare throws, and so does an edge from a step that has run that
+  // reads an output that step did not write. The output that an edge reads from
+  // a step that has not run yet is not checked, nor are the types of an edge's
+  // two ends; the pinned loader checks both when it loads the flow.
+  function checkEdgesInto(node) {
     const declaredInputs = (node.inputs ?? []).map((i) => i.title);
     for (const e of flowData) {
       if (e.destination_node.$component_ref === node.id && !declaredInputs.includes(e.destination_input)) {
         throw new Error(`${node.id}: the edge ${e.name} writes into ${e.destination_input}, which ${node.id} does not declare as an input`);
       }
     }
-    const values = {};
     for (const input of node.inputs ?? []) {
-      let best = null;
       for (const e of flowData) {
         if (e.destination_node.$component_ref !== node.id || e.destination_input !== input.title) continue;
         const source = produced.get(e.source_node.$component_ref);
         if (source && !Object.hasOwn(source.values, e.source_output)) {
           throw new Error(`${node.id}.${input.title}: the edge ${e.name} reads ${e.source_output}, which ${e.source_node.$component_ref} does not write`);
         }
+      }
+    }
+  }
+
+  function inputsOf(node) {
+    checkEdgesInto(node);
+    const values = {};
+    for (const input of node.inputs ?? []) {
+      let best = null;
+      for (const e of flowData) {
+        if (e.destination_node.$component_ref !== node.id || e.destination_input !== input.title) continue;
+        const source = produced.get(e.source_node.$component_ref);
         if (source && (!best || source.at > best.at)) {
           best = { at: source.at, value: source.values[e.source_output] };
         }
@@ -713,6 +736,9 @@ function runFlow(answers, flow = oas) {
         const values = {};
         for (const input of node.inputs) values[input.title] = Object.hasOwn(START_INPUTS, input.title) ? START_INPUTS[input.title] : input.default;
         record(values);
+        // After the record, so that an edge from the start into the start is
+        // checked against what the start wrote.
+        checkEdgesInto(node);
         current = next(node.id);
         break;
       }
@@ -1009,6 +1035,18 @@ describe("the step trace tells a step that ran and wrote nothing from one that h
     });
     return flow;
   };
+  const withEdgeIntoStart = (output, input) => {
+    const flow = structuredClone(oas);
+    flow.data_flow_connections.push({
+      component_type: "DataFlowEdge",
+      name: `start_${output}_to_start_${input}`,
+      source_node: { $component_ref: "start" },
+      source_output: output,
+      destination_node: { $component_ref: "start" },
+      destination_input: input,
+    });
+    return flow;
+  };
   const renamed = (from, to) => {
     const flow = structuredClone(oas);
     const node = flow.$referenced_components[from];
@@ -1093,5 +1131,17 @@ describe("the step trace tells a step that ran and wrote nothing from one that h
 
   it("refuses a variable that the template is not given, also when its name is inherited", () => {
     expect(() => renderTemplate("{%- if toString -%}a{%- else -%}b{%- endif -%}", {})).toThrow(/toString is not defined/);
+  });
+
+  it("refuses a data edge into the start that names an input the start does not declare", () => {
+    expect(() => runFlow(rejectFirst, withEdgeIntoStart("listName", "nope"))).toThrow(
+      /writes into nope, which start does not declare as an input/,
+    );
+  });
+
+  it("refuses a data edge into the start that reads an output the start does not write", () => {
+    expect(() => runFlow(rejectFirst, withEdgeIntoStart("nope", "listName"))).toThrow(
+      /reads nope, which start does not write/,
+    );
   });
 });
