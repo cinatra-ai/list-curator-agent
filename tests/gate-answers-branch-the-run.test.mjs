@@ -14,7 +14,8 @@
 //   - revise returns the run to the step that proposes the values, with the
 //     answer (and the note in it) handed to that step;
 //   - approve, and only approve, reaches the guarded step;
-//   - a decision the branch does not know goes where reject goes.
+//   - a decision the branch does not know ends the run too, with its own
+//     closing message: the answer was not understood.
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -95,16 +96,16 @@ for (const gate of GATES) {
       const node = review(gate.suffix);
       const found = branchOf(node.id);
       expect(found, `no BranchingNode routes the run on the ${gate.name}'s answer`).not.toBeNull();
-      // Between the review and the decision step run only the regex steps
-      // that find the decision field in the same answer.
+      // Between the review and the decision step runs only the step that
+      // parses the same answer.
       let step = node.id;
       for (let hops = 0; step !== found.reader.id; hops += 1) {
         const outgoing = control.filter((e) => e.from_node.$component_ref === step);
         expect(outgoing, `${step} has one way on`).toHaveLength(1);
         step = outgoing[0].to_node.$component_ref;
         if (step === found.reader.id) break;
-        expect(refs[step].component_type, `${step} between the review and its decision step`).toBe("PluginRegexNode");
-        expect(hops).toBeLessThan(4);
+        expect(refs[step].component_type, `${step} between the review and its decision step`).toBe("PluginExtractNode");
+        expect(hops).toBeLessThan(2);
       }
       expect(control.some((e) => e.from_node.$component_ref === found.reader.id && e.to_node.$component_ref === found.branch.id)).toBe(true);
       for (const decision of ["approve", "revise", "reject"]) {
@@ -121,9 +122,17 @@ for (const gate of GATES) {
       expect(after.has(endId), "a reject does not end the run").toBe(true);
     });
 
-    it("sends a decision it does not know where reject goes", () => {
+    it(`ends the run on a decision it does not know: ${gate.guarded} does not start`, () => {
       const { branch } = branchOf(review(gate.suffix).id);
-      expect(target(branch.id, "default")).toBe(target(branch.id, "reject"));
+      const ending = target(branch.id, "default");
+      expect(ending, "the default branch has a closing message of its own").not.toBe(target(branch.id, "reject"));
+      expect(refs[ending].component_type).toBe("OutputMessageNode");
+      expect(refs[ending].message).toMatch(/not understood/);
+      expect(refs[ending].message).not.toMatch(/declined/i);
+      const after = reachable(ending);
+      expect(after.has(gate.guarded)).toBe(false);
+      expect(after.has("create")).toBe(false);
+      expect(after.has(endId)).toBe(true);
     });
 
     it(`returns the run to ${gate.proposer} on revise`, () => {
@@ -161,49 +170,53 @@ for (const gate of GATES) {
   });
 }
 
-describe("the decision step reads the decision field of the answer", () => {
+describe("the decision step reads the parsed answer", () => {
   // What each answer does to the run is driven step by step in
   // gate-answers-drive-the-run.test.mjs; these cases name where it is read.
-  it("finds the decision field with regex steps that read the same answer", () => {
+  it("takes the verdict and the compact JSON from a parse step that reads the same answer", () => {
     for (const gate of GATES) {
       const node = review(gate.suffix);
       const { reader } = branchOf(node.id);
       expect(reader.component_type).toBe("PluginTemplateNode");
-      for (const input of ["plain", "wrapped"]) {
+      for (const input of ["verdict", "canonical"]) {
         const edge = data.find((e) => e.destination_node.$component_ref === reader.id && e.destination_input === input);
         expect(edge, `the ${gate.name}'s decision step has no ${input} input`).toBeTruthy();
-        const finder = refs[edge.source_node.$component_ref];
-        expect(finder.component_type).toBe("PluginRegexNode");
-        expect(finder.return_first_match_only).toBe(false);
-        expect(finder.regex_pattern).toContain(input === "plain" ? '"decision"' : String.raw`\\"decision\\"`);
+        const parser = refs[edge.source_node.$component_ref];
+        expect(parser.component_type).toBe("PluginExtractNode");
+        expect(edge.source_output).toBe(input);
+        expect(Object.keys(parser.output_values)).toEqual(["verdict", "canonical"]);
+        expect(parser.output_values.canonical).toBe("tojson");
+        expect(parser.outputs.map((o) => o.default)).toEqual(["", ""]);
         expect(
           data.some(
             (e) =>
               e.source_node.$component_ref === node.id &&
               e.source_output === "userResponse" &&
-              e.destination_node.$component_ref === finder.id &&
+              e.destination_node.$component_ref === parser.id &&
               e.destination_input === "text",
           ),
-          `${finder.id} does not read the ${gate.name}'s answer`,
+          `${parser.id} does not read the ${gate.name}'s answer`,
         ).toBe(true);
       }
     }
   });
 
-  it("reads the legacy refusal and the host's refusal marker when no decision field is sent", () => {
+  it("takes a verdict only when the parsed answer, written again, is the answer", () => {
     for (const gate of GATES) {
       const { reader } = branchOf(review(gate.suffix).id);
       const template = String(reader.template);
-      for (const literal of ['"approved":false', "[rejectedbyoperator]"]) {
-        expect(template, `the ${gate.name}'s decision step does not read ${literal}`).toContain(literal);
+      for (const decision of ["approve", "revise", "reject"]) {
+        expect(template).toContain(`canonical == answer and verdict == '${decision}'`);
       }
+      expect(template).toContain("answer == '[Approved by operator]'");
+      expect(template).toContain("answer == '[Rejected by operator]'");
     }
   });
 
-  it("gives any other decision a value the branch does not map", () => {
+  it("gives any other answer a value the branch does not map", () => {
     for (const gate of GATES) {
       const { reader, branch } = branchOf(review(gate.suffix).id);
-      expect(String(reader.template)).toContain("-%}unknown{%-");
+      expect(String(reader.template)).toContain("{%- else -%}unknown{%- endif -%}");
       expect(routed(branch, "unknown")).toBe("default");
     }
   });
@@ -216,7 +229,7 @@ describe("the list review says what the flow keeps", () => {
     expect(node.metadata.cinatra.description).not.toMatch(/Nothing is written to the CRM before you approve/);
   });
 
-  it("shows the list name as a fact the reviewer cannot change", () => {
+  it("declares the list name read-only in the review's input schema", () => {
     expect(node.metadata.cinatra.inputMessageSchema.properties.listName.readOnly).toBe(true);
   });
 });

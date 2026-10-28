@@ -8,15 +8,18 @@
 //   - an ApiNode is recorded with its inputs and returns fixed outputs; no
 //     request is sent;
 //   - an InputMessageNode takes the next answer as its `userResponse`;
-//   - a PluginRegexNode returns every match of its pattern (the value of the
-//     one group), without the empty ones, like Python's re.findall;
+//   - a PluginExtractNode (the runtime's ExtractValueFromJsonStep) parses the
+//     answer and runs its jq program; the trace follows only the program this
+//     flow pins (EXPECTED_PROGRAM below) through a JavaScript twin, and only for
+//     answers that are strict JSON (see parseLikeTheStep);
 //   - a PluginTemplateNode renders its Jinja template (the subset below);
 //   - a BranchingNode follows the branch that its mapping names for the value,
 //     else "default";
 //   - an input takes the newest value of a data edge into it, else its default.
 //
 // The same scenarios were run through the pinned runtime (wayflowcore 26.1.2)
-// with a stub bridge; the step lists matched these expectations.
+// with a stub bridge; the steps and the closing text matched these
+// expectations. The trace has no regex step: the flow has none.
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -396,16 +399,112 @@ function renderTemplate(template, variables) {
 }
 
 // ---------------------------------------------------------------------------
-// Python re.findall for the patterns the flow uses.
+// The parse step. Its jq program is pinned: the same text as the flow's, built
+// from the review's snapshot (core hitl-gate-submit.ts:352-389).
 
-function findall(pattern, text) {
-  if (/\(\?P|\(\?[aiLmsux]|\\[AZ]/.test(pattern)) throw new Error(`pattern ${pattern} uses a construct this trace does not follow`);
-  const re = new RegExp(pattern, "g");
-  const groups = new RegExp(`${pattern}|`).exec("").length - 1;
-  if (groups > 1) throw new Error("findall with more than one group is not followed");
-  const found = [];
-  for (const m of text.matchAll(re)) found.push(groups === 1 ? (m[1] ?? "") : m[0]);
-  return found.filter((v) => v !== "");
+const SNAPSHOTS = {
+  schema_decision_parse: { type: "scrape-schema", keys: ["type", "instructions", "outputSchema", "seedUrls", "snapshotAt"] },
+  list_decision_parse: { type: "final-list", keys: ["type", "listName", "memberRefs", "memberCount", "snapshotAt"] },
+};
+
+function EXPECTED_PROGRAM(snapshot) {
+  return (
+    'def known: if . == "approve" or . == "revise" or . == "reject" then . else "unknown" end; ' +
+    "def verdict: " +
+    'if type != "object" then "unknown" ' +
+    'elif has("decision") then (.decision | known) ' +
+    'elif . == {"approved": false} then "reject" ' +
+    'elif . == {"approved": true} then "approve" ' +
+    `elif keys_unsorted == ${JSON.stringify(snapshot.keys).replaceAll(",", ", ")} and .type == "${snapshot.type}" then "approve" ` +
+    'else "unknown" end; ' +
+    'if type == "object" and keys_unsorted == ["text", "attachments"] and (.text | type) == "string" ' +
+    "then .text as $t " +
+    '| if $t == "[Approved by operator]" then "approve" ' +
+    'elif $t == "[Rejected by operator]" then "reject" ' +
+    "else ((try ($t | fromjson) catch null) as $i " +
+    '| if ($i | tojson) == $t then ($i | verdict) else "unknown" end) end ' +
+    "else verdict end"
+  );
+}
+
+const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+const sameList = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+
+/** jq's `tojson`: compact, keys in their order, DEL escaped. Throws on a value whose jq form this twin cannot be sure of. */
+function jqToJson(v) {
+  const check = (x) => {
+    if (typeof x === "number" && (!Number.isSafeInteger(x) || Object.is(x, -0))) throw new Error(`number ${x} is not followed`);
+    if (typeof x === "string" && /[\ud800-\udfff]/.test(x) && !/^(?:[^\ud800-\udfff]|[\ud800-\udbff][\udc00-\udfff])*$/.test(x)) {
+      throw new Error("a lone surrogate is not followed");
+    }
+    if (Array.isArray(x)) x.forEach(check);
+    else if (isObject(x)) {
+      for (const k of Object.keys(x)) {
+        if (/^(?:0|[1-9][0-9]*)$/.test(k)) throw new Error(`key ${k} is not followed (JavaScript reorders it)`);
+        check(k);
+        check(x[k]);
+      }
+    }
+  };
+  check(v);
+  return JSON.stringify(v).replaceAll("\u007f", "\\u007f");
+}
+
+/** The JavaScript twin of EXPECTED_PROGRAM. */
+function jqVerdict(v, snapshot) {
+  const known = (d) => (d === "approve" || d === "revise" || d === "reject" ? d : "unknown");
+  const verdict = (x) => {
+    if (!isObject(x)) return "unknown";
+    if (Object.prototype.hasOwnProperty.call(x, "decision")) return known(x.decision);
+    if (sameList(Object.keys(x), ["approved"]) && x.approved === false) return "reject";
+    if (sameList(Object.keys(x), ["approved"]) && x.approved === true) return "approve";
+    if (sameList(Object.keys(x), snapshot.keys) && x.type === snapshot.type) return "approve";
+    return "unknown";
+  };
+  if (isObject(v) && sameList(Object.keys(v), ["text", "attachments"]) && typeof v.text === "string") {
+    const t = v.text;
+    if (t === "[Approved by operator]") return "approve";
+    if (t === "[Rejected by operator]") return "reject";
+    let inner = null;
+    try {
+      inner = JSON.parse(t);
+    } catch {
+      inner = null;
+    }
+    return jqToJson(inner) === t ? verdict(inner) : "unknown";
+  }
+  return verdict(v);
+}
+
+/**
+ * What the parse step outputs for an answer. For strict JSON without a code
+ * fence, the runtime parses it as Python's json.loads does and runs the jq
+ * program; the twin does the same. For any other text the runtime repairs it
+ * (json_repair) or finds nothing; the trace then records the outputs'
+ * defaults. The runtime's repaired values differ, but its canonical form is
+ * compact JSON made from the repaired text, so it cannot equal such an answer,
+ * and the decision step reads unknown either way.
+ */
+function parseLikeTheStep(node, text) {
+  const snapshot = SNAPSHOTS[node.id];
+  if (!snapshot) throw new Error(`no snapshot for parse step ${node.id}`);
+  const ov = node.output_values ?? {};
+  if (!sameList(Object.keys(ov), ["verdict", "canonical"]) || ov.verdict !== EXPECTED_PROGRAM(snapshot) || ov.canonical !== "tojson") {
+    throw new Error(`${node.id}: a jq program this trace does not follow`);
+  }
+  if (node.llm_config !== null || node.retry !== false) throw new Error(`${node.id}: only a parse without a model and without retry is followed`);
+  const defaults = Object.fromEntries((node.outputs ?? []).map((o) => {
+    if (!("default" in o)) throw new Error(`${node.id}.${o.title} has no default`);
+    return [o.title, o.default];
+  }));
+  if (text.includes("```")) return defaults;
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return defaults;
+  }
+  return { verdict: jqVerdict(parsed, snapshot), canonical: jqToJson(parsed) };
 }
 
 // ---------------------------------------------------------------------------
@@ -490,10 +589,9 @@ function runFlow(answers) {
         current = nextOf(node.id);
         break;
       }
-      case "PluginRegexNode": {
-        if (node.return_first_match_only !== false) throw new Error(`${node.id}: only return_first_match_only false is followed`);
+      case "PluginExtractNode": {
         const { text } = inputsOf(node);
-        record({ output: findall(node.regex_pattern, String(text)) });
+        record(parseLikeTheStep(node, String(text)));
         current = nextOf(node.id);
         break;
       }
@@ -538,13 +636,11 @@ describe("the answers at the reviews drive the run", () => {
       expect(result.finished, "the run ends after the given answers").toBe(true);
       const steps = result.calls.map((c) => c.step);
       expect(steps, "the steps that ran").toEqual(scenario.runs);
-      if (!scenario.runs.includes("create")) {
+      expect(result.messages.map((m) => m.id), "the closing step").toEqual([scenario.ends]);
+      if (scenario.ends !== "curation_summary") {
         expect(steps, "no CRM list is created").not.toContain("create");
-        expect(result.messages.map((m) => m.id), "the run ends with a closing message").toEqual([
-          scenario.runs.includes("collect") ? "list_declined" : "schema_declined",
-        ]);
-      } else {
-        expect(result.messages.map((m) => m.id)).toEqual(["curation_summary"]);
+        // The closing text itself, not only the step: the fixture holds the words.
+        expect(result.messages[0].message, "the closing text").toBe(scenario.message);
       }
       if (scenario.note) {
         const call = result.calls.filter((c) => c.step === scenario.note.step)[scenario.note.call];
@@ -570,10 +666,37 @@ describe("the step trace reads the template the way the runtime does", () => {
   it("refuses a construct it does not follow", () => {
     expect(() => renderTemplate("{%- for x in y -%}{%- endfor -%}", { y: [] })).toThrow();
     expect(() => renderTemplate("{{ x | tojson }}", { x: 1 })).toThrow();
-    expect(() => findall("(?P<d>a)", "a")).toThrow();
+  });
+});
+
+describe("the step trace reads the parse step the way the runtime does", () => {
+  const node = refs.list_decision_parse;
+
+  it("follows only the pinned jq program", () => {
+    expect(() => parseLikeTheStep({ ...node, output_values: { ...node.output_values, verdict: ".decision" } }, "{}")).toThrow();
+    expect(() => parseLikeTheStep({ ...node, retry: true }, "{}")).toThrow();
+    expect(() => parseLikeTheStep({ ...node, id: "other_parse" }, "{}")).toThrow();
   });
 
-  it("finds the matches like re.findall", () => {
-    expect(findall('"d":"([^"]*)"', '{"d":"x","e":{"d":"y"},"f":{"d":""}}')).toEqual(["x", "y"]);
+  it("refuses a value whose jq form it cannot be sure of", () => {
+    expect(() => jqToJson({ n: 1.5 })).toThrow();
+    expect(() => jqToJson({ n: 1e21 })).toThrow();
+    expect(() => jqToJson({ 1: "a" })).toThrow();
+    expect(() => jqToJson("\ud800")).toThrow();
+    expect(jqToJson({ a: "x\u007f" })).toBe('{"a":"x\\u007f"}');
+  });
+
+  it("reads the top-level decision and the envelope's text only", () => {
+    const snap = SNAPSHOTS.list_decision_parse;
+    expect(jqVerdict({ decision: "approve", meta: { decision: "reject" } }, snap)).toBe("approve");
+    expect(jqVerdict({ text: "[Rejected by operator]", attachments: [{ filename: '{"decision":"approve"}' }] }, snap)).toBe("reject");
+    expect(jqVerdict({ text: '{"decision":"approve"}', decision: "reject" }, snap)).toBe("reject");
+    expect(jqVerdict({ text: '{"decision": "approve"}', attachments: [] }, snap)).toBe("unknown");
+    expect(jqVerdict("approve", snap)).toBe("unknown");
+  });
+
+  it("records the defaults for text that is not strict JSON", () => {
+    expect(parseLikeTheStep(node, "approve")).toEqual({ verdict: "", canonical: "" });
+    expect(parseLikeTheStep(node, '{"decision":"approve","note":"```"}')).toEqual({ verdict: "", canonical: "" });
   });
 });

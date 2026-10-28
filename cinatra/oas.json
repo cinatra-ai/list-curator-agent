@@ -109,10 +109,7 @@
       "$component_ref": "schema_gate"
     },
     {
-      "$component_ref": "schema_decision_plain"
-    },
-    {
-      "$component_ref": "schema_decision_wrapped"
+      "$component_ref": "schema_decision_parse"
     },
     {
       "$component_ref": "schema_decision"
@@ -124,16 +121,16 @@
       "$component_ref": "schema_declined"
     },
     {
+      "$component_ref": "schema_not_understood"
+    },
+    {
       "$component_ref": "collect"
     },
     {
       "$component_ref": "list_gate"
     },
     {
-      "$component_ref": "list_decision_plain"
-    },
-    {
-      "$component_ref": "list_decision_wrapped"
+      "$component_ref": "list_decision_parse"
     },
     {
       "$component_ref": "list_decision"
@@ -143,6 +140,9 @@
     },
     {
       "$component_ref": "list_declined"
+    },
+    {
+      "$component_ref": "list_not_understood"
     },
     {
       "$component_ref": "create"
@@ -177,29 +177,19 @@
     },
     {
       "component_type": "ControlFlowEdge",
-      "name": "schema_gate_to_schema_decision_plain",
+      "name": "schema_gate_to_schema_decision_parse",
       "from_node": {
         "$component_ref": "schema_gate"
       },
       "to_node": {
-        "$component_ref": "schema_decision_plain"
+        "$component_ref": "schema_decision_parse"
       }
     },
     {
       "component_type": "ControlFlowEdge",
-      "name": "schema_decision_plain_to_schema_decision_wrapped",
+      "name": "schema_decision_parse_to_schema_decision",
       "from_node": {
-        "$component_ref": "schema_decision_plain"
-      },
-      "to_node": {
-        "$component_ref": "schema_decision_wrapped"
-      }
-    },
-    {
-      "component_type": "ControlFlowEdge",
-      "name": "schema_decision_wrapped_to_schema_decision",
-      "from_node": {
-        "$component_ref": "schema_decision_wrapped"
+        "$component_ref": "schema_decision_parse"
       },
       "to_node": {
         "$component_ref": "schema_decision"
@@ -250,13 +240,13 @@
     },
     {
       "component_type": "ControlFlowEdge",
-      "name": "schema_branch_default_to_schema_declined",
+      "name": "schema_branch_default_to_schema_not_understood",
       "from_node": {
         "$component_ref": "schema_branch"
       },
       "from_branch": "default",
       "to_node": {
-        "$component_ref": "schema_declined"
+        "$component_ref": "schema_not_understood"
       }
     },
     {
@@ -264,6 +254,16 @@
       "name": "schema_declined_to_end",
       "from_node": {
         "$component_ref": "schema_declined"
+      },
+      "to_node": {
+        "$component_ref": "end"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "schema_not_understood_to_end",
+      "from_node": {
+        "$component_ref": "schema_not_understood"
       },
       "to_node": {
         "$component_ref": "end"
@@ -281,29 +281,19 @@
     },
     {
       "component_type": "ControlFlowEdge",
-      "name": "list_gate_to_list_decision_plain",
+      "name": "list_gate_to_list_decision_parse",
       "from_node": {
         "$component_ref": "list_gate"
       },
       "to_node": {
-        "$component_ref": "list_decision_plain"
+        "$component_ref": "list_decision_parse"
       }
     },
     {
       "component_type": "ControlFlowEdge",
-      "name": "list_decision_plain_to_list_decision_wrapped",
+      "name": "list_decision_parse_to_list_decision",
       "from_node": {
-        "$component_ref": "list_decision_plain"
-      },
-      "to_node": {
-        "$component_ref": "list_decision_wrapped"
-      }
-    },
-    {
-      "component_type": "ControlFlowEdge",
-      "name": "list_decision_wrapped_to_list_decision",
-      "from_node": {
-        "$component_ref": "list_decision_wrapped"
+        "$component_ref": "list_decision_parse"
       },
       "to_node": {
         "$component_ref": "list_decision"
@@ -354,13 +344,13 @@
     },
     {
       "component_type": "ControlFlowEdge",
-      "name": "list_branch_default_to_list_declined",
+      "name": "list_branch_default_to_list_not_understood",
       "from_node": {
         "$component_ref": "list_branch"
       },
       "from_branch": "default",
       "to_node": {
-        "$component_ref": "list_declined"
+        "$component_ref": "list_not_understood"
       }
     },
     {
@@ -368,6 +358,16 @@
       "name": "list_declined_to_end",
       "from_node": {
         "$component_ref": "list_declined"
+      },
+      "to_node": {
+        "$component_ref": "end"
+      }
+    },
+    {
+      "component_type": "ControlFlowEdge",
+      "name": "list_not_understood_to_end",
+      "from_node": {
+        "$component_ref": "list_not_understood"
       },
       "to_node": {
         "$component_ref": "end"
@@ -793,51 +793,39 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "schema_gate_userResponse_to_schema_decision_plain_text",
+      "name": "schema_gate_userResponse_to_schema_decision_parse_text",
       "source_node": {
         "$component_ref": "schema_gate"
       },
       "source_output": "userResponse",
       "destination_node": {
-        "$component_ref": "schema_decision_plain"
+        "$component_ref": "schema_decision_parse"
       },
       "destination_input": "text"
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "schema_gate_userResponse_to_schema_decision_wrapped_text",
+      "name": "schema_decision_parse_verdict_to_schema_decision_verdict",
       "source_node": {
-        "$component_ref": "schema_gate"
+        "$component_ref": "schema_decision_parse"
       },
-      "source_output": "userResponse",
-      "destination_node": {
-        "$component_ref": "schema_decision_wrapped"
-      },
-      "destination_input": "text"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "schema_decision_plain_output_to_schema_decision_plain",
-      "source_node": {
-        "$component_ref": "schema_decision_plain"
-      },
-      "source_output": "output",
+      "source_output": "verdict",
       "destination_node": {
         "$component_ref": "schema_decision"
       },
-      "destination_input": "plain"
+      "destination_input": "verdict"
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "schema_decision_wrapped_output_to_schema_decision_wrapped",
+      "name": "schema_decision_parse_canonical_to_schema_decision_canonical",
       "source_node": {
-        "$component_ref": "schema_decision_wrapped"
+        "$component_ref": "schema_decision_parse"
       },
-      "source_output": "output",
+      "source_output": "canonical",
       "destination_node": {
         "$component_ref": "schema_decision"
       },
-      "destination_input": "wrapped"
+      "destination_input": "canonical"
     },
     {
       "component_type": "DataFlowEdge",
@@ -877,51 +865,39 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "list_gate_userResponse_to_list_decision_plain_text",
+      "name": "list_gate_userResponse_to_list_decision_parse_text",
       "source_node": {
         "$component_ref": "list_gate"
       },
       "source_output": "userResponse",
       "destination_node": {
-        "$component_ref": "list_decision_plain"
+        "$component_ref": "list_decision_parse"
       },
       "destination_input": "text"
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "list_gate_userResponse_to_list_decision_wrapped_text",
+      "name": "list_decision_parse_verdict_to_list_decision_verdict",
       "source_node": {
-        "$component_ref": "list_gate"
+        "$component_ref": "list_decision_parse"
       },
-      "source_output": "userResponse",
-      "destination_node": {
-        "$component_ref": "list_decision_wrapped"
-      },
-      "destination_input": "text"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "list_decision_plain_output_to_list_decision_plain",
-      "source_node": {
-        "$component_ref": "list_decision_plain"
-      },
-      "source_output": "output",
+      "source_output": "verdict",
       "destination_node": {
         "$component_ref": "list_decision"
       },
-      "destination_input": "plain"
+      "destination_input": "verdict"
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "list_decision_wrapped_output_to_list_decision_wrapped",
+      "name": "list_decision_parse_canonical_to_list_decision_canonical",
       "source_node": {
-        "$component_ref": "list_decision_wrapped"
+        "$component_ref": "list_decision_parse"
       },
-      "source_output": "output",
+      "source_output": "canonical",
       "destination_node": {
         "$component_ref": "list_decision"
       },
-      "destination_input": "wrapped"
+      "destination_input": "canonical"
     },
     {
       "component_type": "DataFlowEdge",
@@ -1267,14 +1243,14 @@
         }
       ]
     },
-    "schema_decision_plain": {
-      "component_type": "PluginRegexNode",
-      "id": "schema_decision_plain",
-      "name": "Find the decision field in the schema review answer",
+    "schema_decision_parse": {
+      "component_type": "PluginExtractNode",
+      "id": "schema_decision_parse",
+      "name": "Parse the schema review answer",
       "metadata": {
         "cinatra": {
-          "purpose": "find-the-decision-field-of-schema_gate",
-          "description": "Finds the value of every \"decision\" field of the answer given at schema_gate, when the answer is the JSON that the review screen sends."
+          "purpose": "parse-the-answer-of-schema_gate",
+          "description": "Parses the answer given at schema_gate as JSON and returns its verdict and the parsed answer written again as compact JSON. The verdict is the top-level \"decision\" (approve, revise or reject, else unknown); inside the attachment envelope it is read from the parsed `text` only, never from the attachments; nested data is not read. Without a decision field, only {\"approved\": false} (reject), {\"approved\": true} and the host's snapshot of this review (approve) are known; anything else is unknown."
         }
       },
       "inputs": [
@@ -1285,11 +1261,14 @@
       ],
       "outputs": [
         {
-          "title": "output",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "title": "verdict",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "canonical",
+          "type": "string",
+          "default": ""
         }
       ],
       "branches": [
@@ -1297,43 +1276,12 @@
       ],
       "input_mapping": {},
       "output_mapping": {},
-      "regex_pattern": "(?<!\\\\)\"decision\"[ \\t\\r\\n]*:[ \\t\\r\\n]*\"([^\"\\\\]*)\"",
-      "return_first_match_only": false,
-      "component_plugin_name": "NodesPlugin",
-      "component_plugin_version": "26.1.0"
-    },
-    "schema_decision_wrapped": {
-      "component_type": "PluginRegexNode",
-      "id": "schema_decision_wrapped",
-      "name": "Find the decision field in the schema review answer inside the attachment envelope",
-      "metadata": {
-        "cinatra": {
-          "purpose": "find-the-decision-field-of-schema_gate",
-          "description": "Finds the value of every \"decision\" field of the answer given at schema_gate, when the host sent that JSON as the text of the attachment envelope."
-        }
+      "output_values": {
+        "verdict": "def known: if . == \"approve\" or . == \"revise\" or . == \"reject\" then . else \"unknown\" end; def verdict: if type != \"object\" then \"unknown\" elif has(\"decision\") then (.decision | known) elif . == {\"approved\": false} then \"reject\" elif . == {\"approved\": true} then \"approve\" elif keys_unsorted == [\"type\", \"instructions\", \"outputSchema\", \"seedUrls\", \"snapshotAt\"] and .type == \"scrape-schema\" then \"approve\" else \"unknown\" end; if type == \"object\" and keys_unsorted == [\"text\", \"attachments\"] and (.text | type) == \"string\" then .text as $t | if $t == \"[Approved by operator]\" then \"approve\" elif $t == \"[Rejected by operator]\" then \"reject\" else ((try ($t | fromjson) catch null) as $i | if ($i | tojson) == $t then ($i | verdict) else \"unknown\" end) end else verdict end",
+        "canonical": "tojson"
       },
-      "inputs": [
-        {
-          "title": "text",
-          "type": "string"
-        }
-      ],
-      "outputs": [
-        {
-          "title": "output",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      ],
-      "branches": [
-        "next"
-      ],
-      "input_mapping": {},
-      "output_mapping": {},
-      "regex_pattern": "(?<!\\\\)\\\\\"decision\\\\\"(?:[ \\t\\r\\n]|\\\\[nrt])*:(?:[ \\t\\r\\n]|\\\\[nrt])*\\\\\"([^\"\\\\]*)\\\\\"",
-      "return_first_match_only": false,
+      "llm_config": null,
+      "retry": false,
       "component_plugin_name": "NodesPlugin",
       "component_plugin_version": "26.1.0"
     },
@@ -1344,7 +1292,7 @@
       "metadata": {
         "cinatra": {
           "purpose": "read-the-decision-of-schema_gate",
-          "description": "Reads the decision from the \"decision\" field of the answer given at schema_gate: approve, revise or reject. A decision field with any other value, or two decision fields that disagree, read as unknown, and the run ends as on a reject. An answer without a decision field is a reject when it is the host's refusal marker or {\"approved\": false}, and an approve otherwise (the host's bare Continue)."
+          "description": "Reads the decision of the answer given at schema_gate. The host's bare markers \"[Approved by operator]\" and \"[Rejected by operator]\" are compared exactly. Any other answer takes the parse step's verdict only when that step's compact JSON equals the answer byte for byte, so text that the parse step had to repair, or JSON written in another form, is unknown. Returns approve, revise, reject or unknown."
         }
       },
       "inputs": [
@@ -1353,18 +1301,14 @@
           "type": "string"
         },
         {
-          "title": "plain",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "title": "verdict",
+          "type": "string",
+          "default": ""
         },
         {
-          "title": "wrapped",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "title": "canonical",
+          "type": "string",
+          "default": ""
         }
       ],
       "outputs": [
@@ -1378,7 +1322,7 @@
       ],
       "input_mapping": {},
       "output_mapping": {},
-      "template": "{%- set a = answer | string | lower | replace(' ', '') | replace('\\n', '') | replace('\\r', '') | replace('\\t', '') | replace('\\u00a0', '') | replace('\\\\', '') -%}{%- set found = (wrapped if (a | truncate(8, true, '', 0)) == '{\"text\":' else plain) | unique(true) | list -%}{%- if found | length == 1 and found | first == 'approve' -%}approve{%- elif found | length == 1 and found | first == 'revise' -%}revise{%- elif found | length == 1 and found | first == 'reject' -%}reject{%- elif found | length > 0 or 'decision\"' in a or 'decision&quot;' in a or 'decision&#34;' in a or 'decision&#x22;' in a -%}unknown{%- elif '\"approved\":false' in a or '[rejectedbyoperator]' in a -%}reject{%- else -%}approve{%- endif -%}",
+      "template": "{%- if answer == '[Approved by operator]' -%}approve{%- elif answer == '[Rejected by operator]' -%}reject{%- elif canonical == answer and verdict == 'approve' -%}approve{%- elif canonical == answer and verdict == 'revise' -%}revise{%- elif canonical == answer and verdict == 'reject' -%}reject{%- else -%}unknown{%- endif -%}",
       "component_plugin_name": "NodesPlugin",
       "component_plugin_version": "26.1.0"
     },
@@ -1389,7 +1333,7 @@
       "metadata": {
         "cinatra": {
           "purpose": "route-the-run-on-the-decision-of-schema_gate",
-          "description": "approve continues, revise returns the run to propose, reject ends the run; any other decision (unknown) goes where reject goes."
+          "description": "approve continues, revise returns the run to propose, reject ends the run with the decline message; any other decision (unknown) ends the run with the message that the answer was not understood."
         }
       },
       "inputs": [
@@ -1417,6 +1361,18 @@
       "name": "Curation declined",
       "inputs": [],
       "message": "You declined the scrape plan, so the run stopped before collecting any member and before creating a list.",
+      "metadata": {
+        "cinatra": {
+          "purpose": "plain-language-curation-ending"
+        }
+      }
+    },
+    "schema_not_understood": {
+      "component_type": "OutputMessageNode",
+      "id": "schema_not_understood",
+      "name": "Answer not understood",
+      "inputs": [],
+      "message": "The answer to the scrape plan review was not understood, so the run stopped before collecting any member and before creating a list.",
       "metadata": {
         "cinatra": {
           "purpose": "plain-language-curation-ending"
@@ -1650,14 +1606,14 @@
         }
       ]
     },
-    "list_decision_plain": {
-      "component_type": "PluginRegexNode",
-      "id": "list_decision_plain",
-      "name": "Find the decision field in the list review answer",
+    "list_decision_parse": {
+      "component_type": "PluginExtractNode",
+      "id": "list_decision_parse",
+      "name": "Parse the list review answer",
       "metadata": {
         "cinatra": {
-          "purpose": "find-the-decision-field-of-list_gate",
-          "description": "Finds the value of every \"decision\" field of the answer given at list_gate, when the answer is the JSON that the review screen sends."
+          "purpose": "parse-the-answer-of-list_gate",
+          "description": "Parses the answer given at list_gate as JSON and returns its verdict and the parsed answer written again as compact JSON. The verdict is the top-level \"decision\" (approve, revise or reject, else unknown); inside the attachment envelope it is read from the parsed `text` only, never from the attachments; nested data is not read. Without a decision field, only {\"approved\": false} (reject), {\"approved\": true} and the host's snapshot of this review (approve) are known; anything else is unknown."
         }
       },
       "inputs": [
@@ -1668,11 +1624,14 @@
       ],
       "outputs": [
         {
-          "title": "output",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "title": "verdict",
+          "type": "string",
+          "default": ""
+        },
+        {
+          "title": "canonical",
+          "type": "string",
+          "default": ""
         }
       ],
       "branches": [
@@ -1680,43 +1639,12 @@
       ],
       "input_mapping": {},
       "output_mapping": {},
-      "regex_pattern": "(?<!\\\\)\"decision\"[ \\t\\r\\n]*:[ \\t\\r\\n]*\"([^\"\\\\]*)\"",
-      "return_first_match_only": false,
-      "component_plugin_name": "NodesPlugin",
-      "component_plugin_version": "26.1.0"
-    },
-    "list_decision_wrapped": {
-      "component_type": "PluginRegexNode",
-      "id": "list_decision_wrapped",
-      "name": "Find the decision field in the list review answer inside the attachment envelope",
-      "metadata": {
-        "cinatra": {
-          "purpose": "find-the-decision-field-of-list_gate",
-          "description": "Finds the value of every \"decision\" field of the answer given at list_gate, when the host sent that JSON as the text of the attachment envelope."
-        }
+      "output_values": {
+        "verdict": "def known: if . == \"approve\" or . == \"revise\" or . == \"reject\" then . else \"unknown\" end; def verdict: if type != \"object\" then \"unknown\" elif has(\"decision\") then (.decision | known) elif . == {\"approved\": false} then \"reject\" elif . == {\"approved\": true} then \"approve\" elif keys_unsorted == [\"type\", \"listName\", \"memberRefs\", \"memberCount\", \"snapshotAt\"] and .type == \"final-list\" then \"approve\" else \"unknown\" end; if type == \"object\" and keys_unsorted == [\"text\", \"attachments\"] and (.text | type) == \"string\" then .text as $t | if $t == \"[Approved by operator]\" then \"approve\" elif $t == \"[Rejected by operator]\" then \"reject\" else ((try ($t | fromjson) catch null) as $i | if ($i | tojson) == $t then ($i | verdict) else \"unknown\" end) end else verdict end",
+        "canonical": "tojson"
       },
-      "inputs": [
-        {
-          "title": "text",
-          "type": "string"
-        }
-      ],
-      "outputs": [
-        {
-          "title": "output",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      ],
-      "branches": [
-        "next"
-      ],
-      "input_mapping": {},
-      "output_mapping": {},
-      "regex_pattern": "(?<!\\\\)\\\\\"decision\\\\\"(?:[ \\t\\r\\n]|\\\\[nrt])*:(?:[ \\t\\r\\n]|\\\\[nrt])*\\\\\"([^\"\\\\]*)\\\\\"",
-      "return_first_match_only": false,
+      "llm_config": null,
+      "retry": false,
       "component_plugin_name": "NodesPlugin",
       "component_plugin_version": "26.1.0"
     },
@@ -1727,7 +1655,7 @@
       "metadata": {
         "cinatra": {
           "purpose": "read-the-decision-of-list_gate",
-          "description": "Reads the decision from the \"decision\" field of the answer given at list_gate: approve, revise or reject. A decision field with any other value, or two decision fields that disagree, read as unknown, and the run ends as on a reject. An answer without a decision field is a reject when it is the host's refusal marker or {\"approved\": false}, and an approve otherwise (the host's bare Continue)."
+          "description": "Reads the decision of the answer given at list_gate. The host's bare markers \"[Approved by operator]\" and \"[Rejected by operator]\" are compared exactly. Any other answer takes the parse step's verdict only when that step's compact JSON equals the answer byte for byte, so text that the parse step had to repair, or JSON written in another form, is unknown. Returns approve, revise, reject or unknown."
         }
       },
       "inputs": [
@@ -1736,18 +1664,14 @@
           "type": "string"
         },
         {
-          "title": "plain",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "title": "verdict",
+          "type": "string",
+          "default": ""
         },
         {
-          "title": "wrapped",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "title": "canonical",
+          "type": "string",
+          "default": ""
         }
       ],
       "outputs": [
@@ -1761,7 +1685,7 @@
       ],
       "input_mapping": {},
       "output_mapping": {},
-      "template": "{%- set a = answer | string | lower | replace(' ', '') | replace('\\n', '') | replace('\\r', '') | replace('\\t', '') | replace('\\u00a0', '') | replace('\\\\', '') -%}{%- set found = (wrapped if (a | truncate(8, true, '', 0)) == '{\"text\":' else plain) | unique(true) | list -%}{%- if found | length == 1 and found | first == 'approve' -%}approve{%- elif found | length == 1 and found | first == 'revise' -%}revise{%- elif found | length == 1 and found | first == 'reject' -%}reject{%- elif found | length > 0 or 'decision\"' in a or 'decision&quot;' in a or 'decision&#34;' in a or 'decision&#x22;' in a -%}unknown{%- elif '\"approved\":false' in a or '[rejectedbyoperator]' in a -%}reject{%- else -%}approve{%- endif -%}",
+      "template": "{%- if answer == '[Approved by operator]' -%}approve{%- elif answer == '[Rejected by operator]' -%}reject{%- elif canonical == answer and verdict == 'approve' -%}approve{%- elif canonical == answer and verdict == 'revise' -%}revise{%- elif canonical == answer and verdict == 'reject' -%}reject{%- else -%}unknown{%- endif -%}",
       "component_plugin_name": "NodesPlugin",
       "component_plugin_version": "26.1.0"
     },
@@ -1772,7 +1696,7 @@
       "metadata": {
         "cinatra": {
           "purpose": "route-the-run-on-the-decision-of-list_gate",
-          "description": "approve continues, revise returns the run to collect, reject ends the run; any other decision (unknown) goes where reject goes."
+          "description": "approve continues, revise returns the run to collect, reject ends the run with the decline message; any other decision (unknown) ends the run with the message that the answer was not understood."
         }
       },
       "inputs": [
@@ -1800,6 +1724,18 @@
       "name": "Curation declined",
       "inputs": [],
       "message": "You declined the list, so no CRM list was created and no member was added to one.",
+      "metadata": {
+        "cinatra": {
+          "purpose": "plain-language-curation-ending"
+        }
+      }
+    },
+    "list_not_understood": {
+      "component_type": "OutputMessageNode",
+      "id": "list_not_understood",
+      "name": "Answer not understood",
+      "inputs": [],
+      "message": "The answer to the list review was not understood, so no CRM list was created and no member was added to one.",
       "metadata": {
         "cinatra": {
           "purpose": "plain-language-curation-ending"
