@@ -173,6 +173,18 @@ function parseExpression(src) {
   }
   function compare() {
     let left = filtered();
+    if (isName("is")) {
+      take();
+      let negate = false;
+      if (isName("not")) {
+        take();
+        negate = true;
+      }
+      const name = take();
+      if (name?.t !== "name" || !["none", "mapping"].includes(name.v)) throw new Error(`the test ${name?.v} is not followed`);
+      left = { k: "test", name: name.v, value: left };
+      if (negate) left = { k: "not", value: left };
+    }
     for (;;) {
       if (peek()?.t === "op" && ["==", "!=", ">", "<", ">=", "<="].includes(peek().v)) {
         const op = take().v;
@@ -189,6 +201,12 @@ function parseExpression(src) {
   }
   function filtered() {
     let value = primary();
+    while (isOp("[")) {
+      take();
+      const index = conditional();
+      expectOp("]");
+      value = { k: "item", value, index };
+    }
     while (isOp("|")) {
       take();
       const name = take();
@@ -244,6 +262,10 @@ function pyStr(v) {
   if (typeof v === "string") return v;
   if (typeof v === "number") return String(v);
   throw new Error(`the string filter of a ${typeof v} is not followed`);
+}
+
+function isMapping(v) {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
 }
 
 function truthy(v) {
@@ -336,6 +358,7 @@ function evaluate(node, scope) {
     case "in": {
       const left = evaluate(node.left, scope);
       const right = evaluate(node.right, scope);
+      if (isMapping(right) && typeof left === "string") return Object.hasOwn(right, left);
       if (typeof right === "string" && typeof left === "string") return right.includes(left);
       if (Array.isArray(right)) return right.includes(left);
       throw new Error("in of this pair is not followed");
@@ -350,6 +373,18 @@ function evaluate(node, scope) {
       if (typeof l !== "number" || typeof r !== "number") throw new Error("order comparison of non-numbers");
       return { ">": l > r, "<": l < r, ">=": l >= r, "<=": l <= r }[node.op];
     }
+    case "test": {
+      const v = evaluate(node.value, scope);
+      return node.name === "none" ? v === null || v === undefined : isMapping(v);
+    }
+    case "item": {
+      // The runtime's sandbox reads a dict entry only when the key is there.
+      const v = evaluate(node.value, scope);
+      const key = evaluate(node.index, scope);
+      if (!isMapping(v) || typeof key !== "string") throw new Error("only a string key of a dict is followed");
+      if (!Object.hasOwn(v, key)) throw new Error(`the key ${key} is not in the dict`);
+      return v[key];
+    }
     case "filter": {
       const fn = Object.hasOwn(FILTERS, node.name) ? FILTERS[node.name] : undefined;
       if (!fn) throw new Error(`filter ${node.name} is not followed`);
@@ -361,27 +396,30 @@ function evaluate(node, scope) {
 }
 
 function renderTemplate(template, variables) {
-  // A comment writes nothing. It ends at the first "#}", also when it holds a
-  // print tag, as the closing message's input hint does. A comment with the
-  // "-" whitespace control is not followed.
-  template = template.replace(/\{#([\s\S]*?)#\}/g, (whole, body) => {
-    if (body.startsWith("-") || body.endsWith("-")) throw new Error("a comment with whitespace control is not followed");
-    return "";
-  });
-  // Split into text and tags, applying the "-" whitespace control.
+  // Split into text and tags, applying the "-" whitespace control. The scan
+  // takes the earliest opener, as Jinja's lexer does: a comment writes nothing
+  // and ends at the first "#}", also when it holds a print tag, as the closing
+  // message's input hint does. A comment with the "-" whitespace control is not
+  // followed, and neither is a print or statement tag that holds comment-looking
+  // text (in a string literal, Jinja prints it as text).
   const parts = [];
-  const re = /(\{%-?|\{\{-?)([\s\S]*?)(-?%\}|-?\}\})/g;
+  const re = /\{#([\s\S]*?)#\}|(\{%-?|\{\{-?)([\s\S]*?)(-?%\}|-?\}\})/g;
   let last = 0;
   let m;
   while ((m = re.exec(template)) !== null) {
     parts.push({ kind: "text", value: template.slice(last, m.index) });
-    parts.push({
-      kind: m[1].startsWith("{%") ? "stmt" : "print",
-      body: m[2].trim(),
-      trimBefore: m[1].endsWith("-"),
-      trimAfter: m[3].startsWith("-"),
-    });
     last = re.lastIndex;
+    if (m[2] === undefined) {
+      if (m[1].startsWith("-") || m[1].endsWith("-")) throw new Error("a comment with whitespace control is not followed");
+      continue;
+    }
+    if (m[3].includes("{#") || m[3].includes("#}")) throw new Error("comment-looking text inside a tag is not followed");
+    parts.push({
+      kind: m[2].startsWith("{%") ? "stmt" : "print",
+      body: m[3].trim(),
+      trimBefore: m[2].endsWith("-"),
+      trimAfter: m[4].startsWith("-"),
+    });
   }
   parts.push({ kind: "text", value: template.slice(last) });
   if (/\{#|\{%|\{\{/.test(parts.filter((x) => x.kind === "text").map((x) => x.value).join(""))) {
@@ -396,6 +434,7 @@ function renderTemplate(template, variables) {
 
   // Build the statement tree.
   let pos = 0;
+  let loopDepth = 0;
   function block(stops) {
     const body = [];
     while (pos < parts.length) {
@@ -414,9 +453,29 @@ function renderTemplate(template, variables) {
       if (stops.includes(word)) return body;
       pos += 1;
       if (word === "set") {
+        // Inside a loop, Jinja keeps a set to the loop body; the trace does not follow that.
+        if (loopDepth > 0) throw new Error("a set inside a loop is not followed");
+        const bm = /^set\s+([A-Za-z_][A-Za-z0-9_]*)$/.exec(part.body);
+        if (bm) {
+          // The block form: the name takes the text the body writes.
+          const inner = block(["endset"]);
+          pos += 1;
+          body.push({ k: "blockset", name: bm[1], body: inner });
+          continue;
+        }
         const sm = /^set\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*([\s\S]+)$/.exec(part.body);
         if (!sm) throw new Error(`set not followed: ${part.body}`);
         body.push({ k: "set", name: sm[1], expr: parseExpression(sm[2]) });
+      } else if (word === "for") {
+        // One loop name over a list; no else, no filter, no recursion, no loop variable.
+        const fm = /^for\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\s+([\s\S]+)$/.exec(part.body);
+        if (!fm || /\s(if|recursive)\s|\s(if|recursive)$/.test(fm[2]) || fm[1] === "loop") throw new Error(`for not followed: ${part.body}`);
+        loopDepth += 1;
+        const inner = block(["endfor", "else"]);
+        loopDepth -= 1;
+        if (parts[pos].body.split(/\s+/)[0] !== "endfor") throw new Error("for with else is not followed");
+        pos += 1;
+        body.push({ k: "for", name: fm[1], iter: parseExpression(fm[2]), body: inner });
       } else if (word === "if") {
         const arms = [{ test: parseExpression(part.body.slice(2)), body: block(["elif", "else", "endif"]) }];
         let otherwise = [];
@@ -445,6 +504,24 @@ function renderTemplate(template, variables) {
       if (st.k === "text") out += st.v;
       else if (st.k === "print") out += pyStr(evaluate(st.expr, scope));
       else if (st.k === "set") scope[st.name] = evaluate(st.expr, scope);
+      else if (st.k === "blockset") {
+        const outer = out;
+        out = "";
+        run(st.body);
+        scope[st.name] = out;
+        out = outer;
+      } else if (st.k === "for") {
+        const items = evaluate(st.iter, scope);
+        if (!Array.isArray(items)) throw new Error("a for over anything but a list is not followed");
+        const had = Object.hasOwn(scope, st.name);
+        const saved = scope[st.name];
+        for (const item of items) {
+          scope[st.name] = item;
+          run(st.body);
+        }
+        if (had) scope[st.name] = saved;
+        else delete scope[st.name];
+      }
       else if (st.k === "if") {
         const arm = st.arms.find((a) => truthy(evaluate(a.test, scope)));
         run(arm ? arm.body : st.otherwise);
@@ -850,7 +927,14 @@ describe("the step trace reads the template the way the runtime does", () => {
   });
 
   it("refuses a construct it does not follow", () => {
-    expect(() => renderTemplate("{%- for x in y -%}{%- endfor -%}", { y: [] })).toThrow();
+    expect(() => renderTemplate("{%- for x in y -%}{%- else -%}{%- endfor -%}", { y: [] })).toThrow();
+    expect(() => renderTemplate("{% for a, b in y %}{% endfor %}", { y: [] })).toThrow();
+    expect(() => renderTemplate("{% for x in y if x %}{% endfor %}", { y: [] })).toThrow();
+    expect(() => renderTemplate("{% for x in y %}{% set z = 1 %}{% endfor %}", { y: [1] })).toThrow();
+    expect(() => renderTemplate("{% for x in y %}{% endfor %}", { y: null })).toThrow();
+    expect(() => renderTemplate("{{ d['k'] }}", { d: {} })).toThrow();
+    expect(() => renderTemplate("{{ d[0] }}", { d: ["a"] })).toThrow();
+    expect(() => renderTemplate("{% if x is string %}{% endif %}", { x: "a" })).toThrow();
     expect(() => renderTemplate("{{ x | tojson }}", { x: 1 })).toThrow();
     expect(() => renderTemplate("a {#- x #}b", {})).toThrow();
     expect(() => renderTemplate("a {# x -#} b", {})).toThrow();
@@ -858,6 +942,20 @@ describe("the step trace reads the template the way the runtime does", () => {
 
   it("writes nothing for a comment, also one that holds a print tag", () => {
     expect(renderTemplate("{# hint: {{ x }} #}a {# b #}c", {})).toBe("a c");
+  });
+
+  it("refuses comment-looking text inside a print or statement tag, which Jinja prints as text", () => {
+    // Jinja writes {# x #} for the first; the trace does not follow a comment opener inside a tag.
+    expect(() => renderTemplate('{{ "{# x #}" }}', {})).toThrow();
+    expect(() => renderTemplate("{% if x == '#}' %}a{% endif %}", { x: "" })).toThrow();
+  });
+
+  it("reads a loop over a list, a block set, the none and mapping tests and a dict entry", () => {
+    const t = "{% set c %}{% for f in xs %}{% if f is mapping and 'k' in f and f['k'] == 'v' %}x{% endif %}{% endfor %}{% endset %}{{ c | length }}";
+    expect(renderTemplate(t, { xs: [{ k: "v" }, { k: "w" }, { j: "v" }, "v", 1, { k: "v" }] })).toBe("2");
+    expect(renderTemplate("{% if x is none %}N{% elif x is not none %}V{% endif %}", { x: null })).toBe("N");
+    expect(renderTemplate("{% if x is none %}N{% elif x is not none %}V{% endif %}", { x: 0 })).toBe("V");
+    expect(renderTemplate("{% set f = 1 %}{% for f in xs %}{{ f | string }}{% endfor %}{{ f | string }}", { xs: [2, 3] })).toBe("231");
   });
 });
 
@@ -918,6 +1016,61 @@ describe("the closing message tells what happened after create", () => {
     expect(closing({ listId: "L1", memberCount: 3, failures: [failure(3), failure(4)], summary: "s" })).toBe(
       `3 members were added to the list. s ${TWO}`,
     );
+  });
+
+  // A list that could not be created is no entry: the create step reports it as one failure with the
+  // stage crm-list-create and no row (README.md, and the failures declaration of create).
+  const listError = { stage: "crm-list-create", error: "CRM rejected list" };
+  const NOT_CREATED = "The list could not be created in the CRM; what went wrong is listed with the run.";
+  const STAY_ONLY = "Any accounts and contacts that were created while collecting the candidates stay in your CRM.";
+  const ALSO = "The run also reported an error while creating the list; it is listed with the run.";
+
+  it("names a list that could not be created as such, and counts no entry for it", () => {
+    const text = closing({ listId: "", memberCount: 0, failures: [listError], summary: "Failed to create CRM list — no members were added." });
+    expect(text).toBe(`${NOT_CREATED} ${STAY_ONLY} Failed to create CRM list — no members were added.`);
+    expect(text).not.toMatch(/entr(y|ies) could not/);
+    expect(closing({ listId: "", memberCount: 0, failures: [listError, failure(0)], summary: "s" })).toBe(`${NOT_CREATED} ${STAY_ONLY} s ${ONE}`);
+  });
+
+  it("counts only the row failures when the list came back, and names a reported list error apart", () => {
+    expect(closing({ listId: "L1", memberCount: 0, failures: [listError], summary: "s" })).toBe(
+      `The list was created, but no members were added to it. ${ALSO}`,
+    );
+    expect(closing({ listId: "L1", memberCount: 3, failures: [listError, failure(3)], summary: "s" })).toBe(
+      `3 members were added to the list. s ${ONE} ${ALSO}`,
+    );
+    // An entry without a stage, or one that is not an object, is a row failure.
+    expect(closing({ listId: "L1", memberCount: 3, failures: [{ error: "no stage" }, "a string"], summary: "s" })).toBe(
+      `3 members were added to the list. s ${TWO}`,
+    );
+  });
+
+  // A null output is unknown, never a zero or an empty list, and a null summary is not printed.
+  const UNKNOWN = "It is not known whether any entry failed.";
+  const COUNT_UNKNOWN = "The list was created, but the run did not say how many members were added to it.";
+
+  it("reads a null member count as unknown, never as no members", () => {
+    for (const [failures, after] of [[[], ""], [[failure(0)], ` ${ONE}`], [null, ` ${UNKNOWN}`]]) {
+      const text = closing({ listId: "L1", memberCount: null, failures, summary: "s" });
+      expect(text).toBe(`${COUNT_UNKNOWN} s${after}`);
+      expect(text).not.toMatch(/no members|nothing came back/);
+    }
+  });
+
+  it("reads a null failures list as unknown, never as no failure", () => {
+    expect(closing({ listId: "", memberCount: 0, failures: null, summary: "s" })).toBe(`${STAY} s ${UNKNOWN}`);
+    const none = closing({ listId: "L1", memberCount: 0, failures: null, summary: "s" });
+    expect(none).toBe(`The list was created, but no members were added to it. ${UNKNOWN}`);
+    expect(none).not.toMatch(/nothing came back/);
+    expect(closing({ listId: "L1", memberCount: 3, failures: null, summary: "s" })).toBe(`3 members were added to the list. s ${UNKNOWN}`);
+  });
+
+  it("prints no None for a null summary", () => {
+    expect(closing({ listId: "", memberCount: 0, failures: [], summary: null })).toBe(STAY);
+    expect(closing({ listId: "L1", memberCount: 3, failures: [], summary: null })).toBe("3 members were added to the list.");
+    const text = closing({ listId: "L1", memberCount: null, failures: null, summary: null });
+    expect(text).toBe(`${COUNT_UNKNOWN} ${UNKNOWN}`);
+    expect(text).not.toMatch(/None/);
   });
 });
 
