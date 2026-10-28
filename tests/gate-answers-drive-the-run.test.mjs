@@ -21,7 +21,9 @@
 //   - a BranchingNode follows the branch that its mapping names for the value,
 //     else "default";
 //   - an input takes the newest value of a data edge into it, else its default;
-//     an edge that reads an output its source did not write throws.
+//     a data edge from a step that has run, into a step the run reaches or into
+//     the end, that reads an output that step did not write throws (an edge
+//     from a step that has not run yet gives no value and is not checked).
 //
 // The same scenarios were run through the pinned runtime (wayflowcore 26.1.2)
 // with a stub bridge; the steps and the closing text matched these
@@ -601,9 +603,10 @@ function parseLikeTheStep(node, text) {
  * What a template step outputs. The runtime's template step writes one string
  * output, `output`, under the name that the node's output_mapping gives it. The
  * pinned loader refuses a node that declares another output, a second output
- * or none, and the step fails when the declared output is an integer (records
- * of fold 7). The trace follows only a node that declares exactly that one
- * output, as a string; any other declaration or mapping throws.
+ * or none, and the step fails when the declared output is an integer. The
+ * trace follows only a node that declares exactly that one output, as a
+ * string; any other declaration, and an output_mapping of any key other than
+ * `output`, throws.
  */
 function renderLikeTheStep(node, variables) {
   const mapping = node.output_mapping ?? {};
@@ -731,6 +734,7 @@ function runFlow(answers, flow = oas) {
         current = next(node.id);
         break;
       case "EndNode":
+        inputsOf(node);
         return { finished: queue.length === 0, leftOver: queue.length, calls, messages };
       default:
         throw new Error(`node kind ${node.component_type} is not followed by this trace`);
@@ -780,7 +784,7 @@ describe("the step trace reads the template the way the runtime does", () => {
   });
 
   it("writes a string with tojson as the runtime's Jinja does", () => {
-    // Recorded with the runtime's jinja2 (records of fold 4, probe/jinja-tojson.log).
+    // The text that the runtime's jinja2 writes for this input.
     expect(renderTemplate("{{ s | tojson }}", { s: 'a"b\\<>&\'`\u007fé\u{1F600}\n\u0001' })).toBe(
       '"a\\"b\\\\\\u003c\\u003e\\u0026\\u0027`\\u007f\\u00e9\\ud83d\\ude00\\n\\u0001"',
     );
@@ -890,8 +894,7 @@ describe("the step trace follows the declared outputs of a template step the way
   // (renamed by the node's output_mapping, if it has one). The loader refuses
   // a node that declares any other output, or none; the step fails when the
   // declared output is not a string; and a data edge that reads an output its
-  // source does not write is refused when the flow is loaded. Records of
-  // fold 7, mutations/runtime-contract-mutations.log.
+  // source does not write is refused when the flow is loaded.
   const approveBoth = ['{"decision":"approve"}', '{"decision":"approve"}'];
   const withWrap = (change) => {
     const flow = structuredClone(oas);
@@ -936,10 +939,26 @@ describe("the step trace follows the declared outputs of a template step the way
     }
   });
 
+  it("refuses an output_mapping that renames anything but the step's one output", () => {
+    const flow = withWrap((node) => {
+      node.output_mapping = { other: "x" };
+    });
+    expect(() => runFlow(approveBoth, flow)).toThrow(/an output_mapping this trace does not follow/);
+  });
+
   it("refuses a data edge that reads an output its source does not write", () => {
     const flow = withWrap((node, edge) => {
       edge.source_output = "wrapped";
     });
+    expect(() => runFlow(approveBoth, flow)).toThrow(/does not write/);
+  });
+
+  it("refuses a data edge into the end that reads an output its source does not write", () => {
+    const flow = structuredClone(oas);
+    const edge = flow.data_flow_connections.find(
+      (e) => e.source_node.$component_ref === "collect" && e.destination_node.$component_ref === "end" && e.source_output === "dispatchedRuns",
+    );
+    edge.source_output = "missingOutput";
     expect(() => runFlow(approveBoth, flow)).toThrow(/does not write/);
   });
 });
