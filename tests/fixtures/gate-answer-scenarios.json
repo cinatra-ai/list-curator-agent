@@ -1743,5 +1743,1090 @@
     ],
     "ends": "list_not_understood",
     "message": "The answer to the list review was not understood, so no CRM list was created and no member was added to one."
+  },
+  {
+    "name": "edits: the three edits at the scrape-plan review reach collect",
+    "answers": [
+      "{\"decision\":\"approve\",\"seedUrls\":[\"https://example.test/edited-1\",\"https://example.test/edited-2\"],\"outputSchema\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"}}},\"instructions\":\"Read the team page only.\"}",
+      "{\"decision\":\"approve\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/edited-1",
+            "https://example.test/edited-2"
+          ],
+          "outputSchema": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "instructions": "Read the team page only."
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: the list name edited at the list review reaches create",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"approve\",\"listName\":\"Renamed\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/a"
+          ],
+          "outputSchema": {
+            "type": "object"
+          },
+          "instructions": ""
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "Renamed"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: edits at both reviews reach both steps",
+    "answers": [
+      "{\"decision\":\"approve\",\"seedUrls\":[\"https://example.test/edited-1\",\"https://example.test/edited-2\"],\"outputSchema\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"}}},\"instructions\":\"Read the team page only.\"}",
+      "{\"decision\":\"approve\",\"listName\":\"Renamed\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/edited-1",
+            "https://example.test/edited-2"
+          ],
+          "outputSchema": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "instructions": "Read the team page only."
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "Renamed"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: an approve without an edit runs with the values shown",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"approve\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/a"
+          ],
+          "outputSchema": {
+            "type": "object"
+          },
+          "instructions": ""
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: an approve that sends the values shown unchanged runs with them",
+    "answers": [
+      "{\"decision\":\"approve\",\"seedUrls\":[\"https://example.test/a\"],\"outputSchema\":{\"type\":\"object\"},\"instructions\":\"\"}",
+      "{\"decision\":\"approve\",\"listName\":\"CTOs\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/a"
+          ],
+          "outputSchema": {
+            "type": "object"
+          },
+          "instructions": ""
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: the host's approve marker runs with the values shown",
+    "answers": [
+      "[Approved by operator]",
+      "[Approved by operator]"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/a"
+          ],
+          "outputSchema": {
+            "type": "object"
+          },
+          "instructions": ""
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: a bare approved flag runs with the values shown",
+    "answers": [
+      "{\"approved\":true}",
+      "{\"approved\":true}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/a"
+          ],
+          "outputSchema": {
+            "type": "object"
+          },
+          "instructions": ""
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: only the seed URLs edited: the schema and the instructions stay as shown",
+    "answers": [
+      "{\"decision\":\"approve\",\"seedUrls\":[\"https://example.test/edited-1\",\"https://example.test/edited-2\"]}",
+      "{\"decision\":\"approve\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/edited-1",
+            "https://example.test/edited-2"
+          ],
+          "outputSchema": {
+            "type": "object"
+          },
+          "instructions": ""
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: only the schema edited: the seed URLs and the instructions stay as shown",
+    "answers": [
+      "{\"decision\":\"approve\",\"outputSchema\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"}}}}",
+      "{\"decision\":\"approve\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/a"
+          ],
+          "outputSchema": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "instructions": ""
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: only the instructions edited: the seed URLs and the schema stay as shown",
+    "answers": [
+      "{\"decision\":\"approve\",\"instructions\":\"Read the team page only.\"}",
+      "{\"decision\":\"approve\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/a"
+          ],
+          "outputSchema": {
+            "type": "object"
+          },
+          "instructions": "Read the team page only."
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: edits in the attachment envelope's text reach both steps",
+    "answers": [
+      "{\"text\":\"{\\\"decision\\\":\\\"approve\\\",\\\"seedUrls\\\":[\\\"https://example.test/edited-1\\\",\\\"https://example.test/edited-2\\\"],\\\"outputSchema\\\":{\\\"type\\\":\\\"object\\\",\\\"properties\\\":{\\\"name\\\":{\\\"type\\\":\\\"string\\\"}}},\\\"instructions\\\":\\\"Read the team page only.\\\"}\",\"attachments\":[]}",
+      "{\"text\":\"{\\\"decision\\\":\\\"approve\\\",\\\"listName\\\":\\\"Renamed\\\"}\",\"attachments\":[]}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/edited-1",
+            "https://example.test/edited-2"
+          ],
+          "outputSchema": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "instructions": "Read the team page only."
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "Renamed"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: edits in the host's snapshot reach both steps",
+    "answers": [
+      "{\"type\":\"scrape-schema\",\"instructions\":\"Read the team page only.\",\"outputSchema\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"}}},\"seedUrls\":[\"https://example.test/edited-1\",\"https://example.test/edited-2\"],\"snapshotAt\":\"2026-01-01T00:00:00.000Z\"}",
+      "{\"type\":\"final-list\",\"listName\":\"Renamed\",\"memberRefs\":[],\"memberCount\":0,\"snapshotAt\":\"2026-01-01T00:00:00.000Z\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/edited-1",
+            "https://example.test/edited-2"
+          ],
+          "outputSchema": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "instructions": "Read the team page only."
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "Renamed"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: the host's empty snapshot runs with the values shown",
+    "answers": [
+      "{\"type\":\"scrape-schema\",\"instructions\":\"\",\"outputSchema\":{\"type\":\"object\",\"properties\":{}},\"seedUrls\":[],\"snapshotAt\":\"2026-01-01T00:00:00.000Z\"}",
+      "{\"type\":\"final-list\",\"listName\":\"\",\"memberRefs\":[],\"memberCount\":0,\"snapshotAt\":\"2026-01-01T00:00:00.000Z\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/a"
+          ],
+          "outputSchema": {
+            "type": "object"
+          },
+          "instructions": ""
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: an attachment that names values is not an edit",
+    "answers": [
+      "{\"text\":\"{\\\"decision\\\":\\\"approve\\\"}\",\"attachments\":[{\"seedUrls\":[\"https://example.test/edited-1\",\"https://example.test/edited-2\"],\"listName\":\"Renamed\"}]}",
+      "{\"text\":\"{\\\"decision\\\":\\\"approve\\\"}\",\"attachments\":[{\"listName\":\"Renamed\"}]}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/a"
+          ],
+          "outputSchema": {
+            "type": "object"
+          },
+          "instructions": ""
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: nested data that names values is not an edit",
+    "answers": [
+      "{\"decision\":\"approve\",\"data\":{\"seedUrls\":[\"https://example.test/edited-1\",\"https://example.test/edited-2\"],\"outputSchema\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"}}}}}",
+      "{\"decision\":\"approve\",\"data\":{\"listName\":\"Renamed\"}}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/a"
+          ],
+          "outputSchema": {
+            "type": "object"
+          },
+          "instructions": ""
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: an empty seed URL list runs with the seed URLs shown",
+    "answers": [
+      "{\"decision\":\"approve\",\"seedUrls\":[]}",
+      "{\"decision\":\"approve\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/a"
+          ],
+          "outputSchema": {
+            "type": "object"
+          },
+          "instructions": ""
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: a seed URL list with a blank entry runs with the seed URLs shown",
+    "answers": [
+      "{\"decision\":\"approve\",\"seedUrls\":[\"https://example.test/b\",\"  \"]}",
+      "{\"decision\":\"approve\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/a"
+          ],
+          "outputSchema": {
+            "type": "object"
+          },
+          "instructions": ""
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: a seed URL list with a number runs with the seed URLs shown",
+    "answers": [
+      "{\"decision\":\"approve\",\"seedUrls\":[\"https://example.test/b\",1]}",
+      "{\"decision\":\"approve\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/a"
+          ],
+          "outputSchema": {
+            "type": "object"
+          },
+          "instructions": ""
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: seed URLs that are not a list run with the seed URLs shown",
+    "answers": [
+      "{\"decision\":\"approve\",\"seedUrls\":\"https://example.test/b\"}",
+      "{\"decision\":\"approve\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/a"
+          ],
+          "outputSchema": {
+            "type": "object"
+          },
+          "instructions": ""
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: a schema that is not an object runs with the schema shown",
+    "answers": [
+      "{\"decision\":\"approve\",\"outputSchema\":[\"a\"]}",
+      "{\"decision\":\"approve\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/a"
+          ],
+          "outputSchema": {
+            "type": "object"
+          },
+          "instructions": ""
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: instructions that are not a string run with no instructions",
+    "answers": [
+      "{\"decision\":\"approve\",\"instructions\":7}",
+      "{\"decision\":\"approve\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/a"
+          ],
+          "outputSchema": {
+            "type": "object"
+          },
+          "instructions": ""
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: a blank list name runs with the name shown",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"approve\",\"listName\":\" \\t \"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/a"
+          ],
+          "outputSchema": {
+            "type": "object"
+          },
+          "instructions": ""
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: a list name that is not a string runs with the name shown",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"approve\",\"listName\":7}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/a"
+          ],
+          "outputSchema": {
+            "type": "object"
+          },
+          "instructions": ""
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: edited values keep their characters",
+    "answers": [
+      "{\"decision\":\"approve\",\"instructions\":\"Use `code` <b> & 'quotes' \\\"too\\\" é\\n```\\nend\",\"outputSchema\":{\"title\":\"`a` <b>\"}}",
+      "{\"decision\":\"approve\",\"listName\":\"R&D `list` <b> é\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/a"
+          ],
+          "outputSchema": {
+            "title": "`a` <b>"
+          },
+          "instructions": "Use `code` <b> & 'quotes' \"too\" é\n```\nend"
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "R&D `list` <b> é"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: a list revise keeps the edited plan for the second collect",
+    "answers": [
+      "{\"decision\":\"approve\",\"seedUrls\":[\"https://example.test/edited-1\",\"https://example.test/edited-2\"],\"outputSchema\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"}}},\"instructions\":\"Read the team page only.\"}",
+      "{\"decision\":\"revise\",\"note\":\"again\"}",
+      "{\"decision\":\"approve\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/edited-1",
+            "https://example.test/edited-2"
+          ],
+          "outputSchema": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "instructions": "Read the team page only."
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      },
+      {
+        "step": "collect",
+        "call": 1,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/edited-1",
+            "https://example.test/edited-2"
+          ],
+          "outputSchema": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "instructions": "Read the team page only.",
+          "reviewAnswer": "{\"decision\":\"revise\",\"note\":\"again\"}"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: a name in a list revise is not kept: the approve after it runs with the name shown",
+    "answers": [
+      "{\"decision\":\"approve\"}",
+      "{\"decision\":\"revise\",\"note\":\"again\",\"listName\":\"Renamed\"}",
+      "{\"decision\":\"approve\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/a"
+          ],
+          "outputSchema": {
+            "type": "object"
+          },
+          "instructions": ""
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: a schema revise, then an edited approve",
+    "answers": [
+      "{\"decision\":\"revise\",\"note\":\"other pages\",\"seedUrls\":[\"https://example.test/ignored\"]}",
+      "{\"decision\":\"approve\",\"seedUrls\":[\"https://example.test/edited-1\",\"https://example.test/edited-2\"],\"outputSchema\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"}}},\"instructions\":\"Read the team page only.\"}",
+      "{\"decision\":\"approve\"}"
+    ],
+    "runs": [
+      "propose",
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/edited-1",
+            "https://example.test/edited-2"
+          ],
+          "outputSchema": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "instructions": "Read the team page only."
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: a reject with edits at the scrape-plan review collects nothing",
+    "answers": [
+      "{\"decision\":\"reject\",\"seedUrls\":[\"https://example.test/edited-1\",\"https://example.test/edited-2\"],\"outputSchema\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"}}},\"instructions\":\"Read the team page only.\"}"
+    ],
+    "runs": [
+      "propose"
+    ],
+    "ends": "schema_declined",
+    "message": "You declined the scrape plan, so the run stopped before collecting any member and before creating a list."
+  },
+  {
+    "name": "edits: a reject with a name at the list review creates nothing",
+    "answers": [
+      "{\"decision\":\"approve\",\"seedUrls\":[\"https://example.test/edited-1\",\"https://example.test/edited-2\"],\"outputSchema\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"}}},\"instructions\":\"Read the team page only.\"}",
+      "{\"decision\":\"reject\",\"listName\":\"Renamed\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ],
+    "ends": "list_declined",
+    "message": "You declined the list, so no CRM list was created and no member was added to one.",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/edited-1",
+            "https://example.test/edited-2"
+          ],
+          "outputSchema": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "instructions": "Read the team page only."
+        }
+      }
+    ]
   }
 ]

@@ -531,30 +531,6 @@
     },
     {
       "component_type": "DataFlowEdge",
-      "name": "propose_seedUrls_to_collect_seedUrls",
-      "source_node": {
-        "$component_ref": "propose"
-      },
-      "source_output": "seedUrls",
-      "destination_node": {
-        "$component_ref": "collect"
-      },
-      "destination_input": "seedUrls"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "propose_outputSchema_to_collect_outputSchema",
-      "source_node": {
-        "$component_ref": "propose"
-      },
-      "source_output": "outputSchema",
-      "destination_node": {
-        "$component_ref": "collect"
-      },
-      "destination_input": "outputSchema"
-    },
-    {
-      "component_type": "DataFlowEdge",
       "name": "start_targetMemberType_to_collect_targetMemberType",
       "source_node": {
         "$component_ref": "start"
@@ -624,18 +600,6 @@
         "$component_ref": "list_gate"
       },
       "destination_input": "failures"
-    },
-    {
-      "component_type": "DataFlowEdge",
-      "name": "start_listName_to_create_listName",
-      "source_node": {
-        "$component_ref": "start"
-      },
-      "source_output": "listName",
-      "destination_node": {
-        "$component_ref": "create"
-      },
-      "destination_input": "listName"
     },
     {
       "component_type": "DataFlowEdge",
@@ -924,6 +888,90 @@
         "$component_ref": "collect"
       },
       "destination_input": "reviewAnswer"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "propose_seedUrls_to_schema_answer_wrap_seedUrls",
+      "source_node": {
+        "$component_ref": "propose"
+      },
+      "source_output": "seedUrls",
+      "destination_node": {
+        "$component_ref": "schema_answer_wrap"
+      },
+      "destination_input": "seedUrls"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "propose_outputSchema_to_schema_answer_wrap_outputSchema",
+      "source_node": {
+        "$component_ref": "propose"
+      },
+      "source_output": "outputSchema",
+      "destination_node": {
+        "$component_ref": "schema_answer_wrap"
+      },
+      "destination_input": "outputSchema"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "schema_decision_parse_seedUrls_to_collect_seedUrls",
+      "source_node": {
+        "$component_ref": "schema_decision_parse"
+      },
+      "source_output": "seedUrls",
+      "destination_node": {
+        "$component_ref": "collect"
+      },
+      "destination_input": "seedUrls"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "schema_decision_parse_outputSchema_to_collect_outputSchema",
+      "source_node": {
+        "$component_ref": "schema_decision_parse"
+      },
+      "source_output": "outputSchema",
+      "destination_node": {
+        "$component_ref": "collect"
+      },
+      "destination_input": "outputSchema"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "schema_decision_parse_instructions_to_collect_instructions",
+      "source_node": {
+        "$component_ref": "schema_decision_parse"
+      },
+      "source_output": "instructions",
+      "destination_node": {
+        "$component_ref": "collect"
+      },
+      "destination_input": "instructions"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "start_listName_to_list_answer_wrap_listName",
+      "source_node": {
+        "$component_ref": "start"
+      },
+      "source_output": "listName",
+      "destination_node": {
+        "$component_ref": "list_answer_wrap"
+      },
+      "destination_input": "listName"
+    },
+    {
+      "component_type": "DataFlowEdge",
+      "name": "list_decision_parse_listName_to_create_listName",
+      "source_node": {
+        "$component_ref": "list_decision_parse"
+      },
+      "source_output": "listName",
+      "destination_node": {
+        "$component_ref": "create"
+      },
+      "destination_input": "listName"
     }
   ],
   "$referenced_components": {
@@ -1182,16 +1230,18 @@
             "properties": {
               "outputSchema": {
                 "type": "object",
-                "title": "Scrape schema",
-                "readOnly": true
+                "title": "Scrape schema"
               },
               "seedUrls": {
                 "type": "array",
                 "title": "Seed pages",
                 "items": {
                   "type": "string"
-                },
-                "readOnly": true
+                }
+              },
+              "instructions": {
+                "type": "string",
+                "title": "Instructions"
               },
               "plan": {
                 "type": "string",
@@ -1252,13 +1302,26 @@
       "metadata": {
         "cinatra": {
           "purpose": "wrap-the-answer-of-schema_gate",
-          "description": "Hands the answer given at schema_gate to schema_decision_parse as the one string of a JSON object, with every backtick escaped. The parse step splits its input on code fences and repairs text that is not JSON; this object holds no code fence and is JSON for every answer that the runtime's tojson writes, so the parse step does not split it, has nothing to repair and reads the answer as it was given, a lone low surrogate excepted: the pinned jq reads a lone low surrogate (U+DC00 to U+DFFF) as U+FFFD. In a string that gives no verdict, such as a note or an attachment's metadata, the answer keeps its decision; in the decision value, in a host marker, in the decision key, or in two keys of one object that both become U+FFFD, it makes the answer unknown. An answer that holds a lone high surrogate character (U+D800 to U+DBFF) is unknown too: tojson writes it as an escape that the pinned jq refuses, so the parse step gives no verdict."
+          "description": "Hands the answer given at schema_gate to schema_decision_parse as the one string of a JSON object, with every backtick escaped. The parse step splits its input on code fences and repairs text that is not JSON; this object holds no code fence and is JSON for every answer that the runtime's tojson writes, so the parse step does not split it, has nothing to repair and reads the answer as it was given, a lone low surrogate excepted: the pinned jq reads a lone low surrogate (U+DC00 to U+DFFF) as U+FFFD. In a string that gives no verdict, such as a note or an attachment's metadata, the answer keeps its decision; in the decision value, in a host marker, in the decision key, or in two keys of one object that both become U+FFFD, it makes the answer unknown. An answer that holds a lone high surrogate character (U+D800 to U+DBFF) is unknown too: tojson writes it as an escape that the pinned jq refuses, so the parse step gives no verdict. Beside the answer it hands over the values that the review showed, under `shown`, so that an approve without an edit runs with them; they are written the same way."
         }
       },
       "inputs": [
         {
           "title": "answer",
           "type": "string"
+        },
+        {
+          "title": "seedUrls",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "title": "outputSchema",
+          "type": "object"
         }
       ],
       "outputs": [
@@ -1272,7 +1335,7 @@
       ],
       "input_mapping": {},
       "output_mapping": {},
-      "template": "{\"answer\": {{ answer | tojson | replace('`', '\\\\u0060') }} }",
+      "template": "{\"answer\": {{ answer | tojson | replace('`', '\\\\u0060') }}, \"shown\": {\"seedUrls\": {{ seedUrls | tojson | replace('`', '\\\\u0060') }}, \"outputSchema\": {{ outputSchema | tojson | replace('`', '\\\\u0060') }} } }",
       "component_plugin_name": "NodesPlugin",
       "component_plugin_version": "26.1.0"
     },
@@ -1283,7 +1346,7 @@
       "metadata": {
         "cinatra": {
           "purpose": "parse-the-answer-of-schema_gate",
-          "description": "Parses the answer given at schema_gate, handed over by schema_answer_wrap, and returns its verdict. The answer is read only when it is strict JSON: every token is written as JSON writes it, no object holds a key twice, and nothing but whitespace follows the value; a string that holds a lone high surrogate is refused, and a lone low surrogate is read as U+FFFD; JSON that differs only in spacing, in the escapes it uses or in how it writes a number is read the same. The verdict is the top-level \"decision\" (approve, revise or reject, else unknown); inside the attachment envelope it is read from the `text` only, which is read in the same way, never from the attachments; nested data gives no verdict. The strict JSON rule covers the whole answer, the attachments and nested data included, so a key twice or a token that JSON does not write anywhere in it makes the answer unknown. A decision field counts only when the answer's `approved` field and `text` field, where present beside it, read the same verdict; two signals that disagree make the answer unknown. Without a decision field, only {\"approved\": false} (reject), {\"approved\": true} and the host's snapshot of this review (approve) are known; the host's bare markers \"[Approved by operator]\" and \"[Rejected by operator]\" are compared exactly. Anything else is unknown."
+          "description": "Parses the answer given at schema_gate, handed over by schema_answer_wrap, and returns its verdict. The answer is read only when it is strict JSON: every token is written as JSON writes it, no object holds a key twice, and nothing but whitespace follows the value; a string that holds a lone high surrogate is refused, and a lone low surrogate is read as U+FFFD; JSON that differs only in spacing, in the escapes it uses or in how it writes a number is read the same. The verdict is the top-level \"decision\" (approve, revise or reject, else unknown); inside the attachment envelope it is read from the `text` only, which is read in the same way, never from the attachments; nested data gives no verdict. The strict JSON rule covers the whole answer, the attachments and nested data included, so a key twice or a token that JSON does not write anywhere in it makes the answer unknown. A decision field counts only when the answer's `approved` field and `text` field, where present beside it, read the same verdict; two signals that disagree make the answer unknown. Without a decision field, only {\"approved\": false} (reject), {\"approved\": true} and the host's snapshot of this review (approve) are known; the host's bare markers \"[Approved by operator]\" and \"[Rejected by operator]\" are compared exactly. Anything else is unknown. It also returns the values that collect uses, from the same answer, read in the same way: seedUrls when the answer holds a list of strings that is not empty and has no blank entry, outputSchema when it holds an object, instructions when it holds a string. Each value is read on its own. A value that is missing or is not of that form is no edit: seedUrls and outputSchema then take the values that the review showed, and instructions is empty. The answer's nested data and attachments give no value. The default schema of the host's snapshot, {\"type\":\"object\",\"properties\":{}}, is not an edit either: the host writes it when the screen buffered nothing."
         }
       },
       "inputs": [
@@ -1297,6 +1360,26 @@
           "title": "verdict",
           "type": "string",
           "default": ""
+        },
+        {
+          "title": "seedUrls",
+          "type": "array",
+          "json_schema": {
+            "items": {
+              "type": "string"
+            }
+          },
+          "default": []
+        },
+        {
+          "title": "outputSchema",
+          "type": "object",
+          "default": {}
+        },
+        {
+          "title": "instructions",
+          "type": "string",
+          "default": ""
         }
       ],
       "branches": [
@@ -1305,7 +1388,10 @@
       "input_mapping": {},
       "output_mapping": {},
       "output_values": {
-        "verdict": "def known: if . == \"approve\" or . == \"revise\" or . == \"reject\" then . else \"unknown\" end; def strict: . as $raw | [scan(\"\\\"(?:[^\\\"\\\\\\\\\\\\x00-\\\\x1f]|\\\\\\\\[\\\"\\\\\\\\/bfnrt]|\\\\\\\\u[0-9a-fA-F]{4})*\\\"|-?(?:0|[1-9][0-9]*)(?:\\\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?(?![0-9.eE+-])|true|false|null|[{}\\\\[\\\\]:,]|[ \\\\t\\\\n\\\\r]+\")] as $tok | if ($tok | add // \"\") != $raw then [] elif (reduce ($tok[] | select(test(\"^[ \\\\t\\\\n\\\\r]\") | not)) as $t ({s: [], k: null, ok: true}; if .ok | not then . elif $t == \"{\" then .s += [[]] | .k = null elif $t == \"[\" then .s += [null] | .k = null elif $t == \"}\" or $t == \"]\" then .s |= .[:-1] | .k = null elif $t == \":\" then (if .k == null or (.s | length) == 0 or (.s[-1] | type) != \"array\" then .ok = false else (.k | fromjson) as $key | (.s | length - 1) as $n | if any(.s[$n][]; . == $key) then .ok = false else .s[$n] += [$key] | .k = null end end) elif ($t | startswith(\"\\\"\")) then .k = $t else .k = null end) | .ok) | not then [] else [try fromjson] end; def textverdict(f): if type != \"string\" then \"unknown\" elif . == \"[Approved by operator]\" then \"approve\" elif . == \"[Rejected by operator]\" then \"reject\" else (strict as $p | if ($p | length) == 1 then ($p[0] | f) else \"unknown\" end) end; def verdict: if type != \"object\" then \"unknown\" elif has(\"decision\") then ((.decision | known) as $d | if has(\"approved\") and (if .approved == true then \"approve\" elif .approved == false then \"reject\" else \"unknown\" end) != $d then \"unknown\" elif has(\"text\") and (.text | textverdict(verdict)) != $d then \"unknown\" else $d end) elif . == {\"approved\": false} then \"reject\" elif . == {\"approved\": true} then \"approve\" elif keys_unsorted == [\"type\", \"instructions\", \"outputSchema\", \"seedUrls\", \"snapshotAt\"] and .type == \"scrape-schema\" then \"approve\" else \"unknown\" end; if type == \"object\" and keys_unsorted == [\"answer\"] then (.answer | textverdict(if type == \"object\" and keys_unsorted == [\"text\", \"attachments\"] then (.text | textverdict(verdict)) else verdict end)) else \"unknown\" end"
+        "verdict": "def known: if . == \"approve\" or . == \"revise\" or . == \"reject\" then . else \"unknown\" end; def strict: . as $raw | [scan(\"\\\"(?:[^\\\"\\\\\\\\\\\\x00-\\\\x1f]|\\\\\\\\[\\\"\\\\\\\\/bfnrt]|\\\\\\\\u[0-9a-fA-F]{4})*\\\"|-?(?:0|[1-9][0-9]*)(?:\\\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?(?![0-9.eE+-])|true|false|null|[{}\\\\[\\\\]:,]|[ \\\\t\\\\n\\\\r]+\")] as $tok | if ($tok | add // \"\") != $raw then [] elif (reduce ($tok[] | select(test(\"^[ \\\\t\\\\n\\\\r]\") | not)) as $t ({s: [], k: null, ok: true}; if .ok | not then . elif $t == \"{\" then .s += [[]] | .k = null elif $t == \"[\" then .s += [null] | .k = null elif $t == \"}\" or $t == \"]\" then .s |= .[:-1] | .k = null elif $t == \":\" then (if .k == null or (.s | length) == 0 or (.s[-1] | type) != \"array\" then .ok = false else (.k | fromjson) as $key | (.s | length - 1) as $n | if any(.s[$n][]; . == $key) then .ok = false else .s[$n] += [$key] | .k = null end end) elif ($t | startswith(\"\\\"\")) then .k = $t else .k = null end) | .ok) | not then [] else [try fromjson] end; def textverdict(f): if type != \"string\" then \"unknown\" elif . == \"[Approved by operator]\" then \"approve\" elif . == \"[Rejected by operator]\" then \"reject\" else (strict as $p | if ($p | length) == 1 then ($p[0] | f) else \"unknown\" end) end; def verdict: if type != \"object\" then \"unknown\" elif has(\"decision\") then ((.decision | known) as $d | if has(\"approved\") and (if .approved == true then \"approve\" elif .approved == false then \"reject\" else \"unknown\" end) != $d then \"unknown\" elif has(\"text\") and (.text | textverdict(verdict)) != $d then \"unknown\" else $d end) elif . == {\"approved\": false} then \"reject\" elif . == {\"approved\": true} then \"approve\" elif keys_unsorted == [\"type\", \"instructions\", \"outputSchema\", \"seedUrls\", \"snapshotAt\"] and .type == \"scrape-schema\" then \"approve\" else \"unknown\" end; if type == \"object\" and keys_unsorted == [\"answer\", \"shown\"] then (.answer | textverdict(if type == \"object\" and keys_unsorted == [\"text\", \"attachments\"] then (.text | textverdict(verdict)) else verdict end)) else \"unknown\" end",
+        "seedUrls": "def strict: . as $raw | [scan(\"\\\"(?:[^\\\"\\\\\\\\\\\\x00-\\\\x1f]|\\\\\\\\[\\\"\\\\\\\\/bfnrt]|\\\\\\\\u[0-9a-fA-F]{4})*\\\"|-?(?:0|[1-9][0-9]*)(?:\\\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?(?![0-9.eE+-])|true|false|null|[{}\\\\[\\\\]:,]|[ \\\\t\\\\n\\\\r]+\")] as $tok | if ($tok | add // \"\") != $raw then [] elif (reduce ($tok[] | select(test(\"^[ \\\\t\\\\n\\\\r]\") | not)) as $t ({s: [], k: null, ok: true}; if .ok | not then . elif $t == \"{\" then .s += [[]] | .k = null elif $t == \"[\" then .s += [null] | .k = null elif $t == \"}\" or $t == \"]\" then .s |= .[:-1] | .k = null elif $t == \":\" then (if .k == null or (.s | length) == 0 or (.s[-1] | type) != \"array\" then .ok = false else (.k | fromjson) as $key | (.s | length - 1) as $n | if any(.s[$n][]; . == $key) then .ok = false else .s[$n] += [$key] | .k = null end end) elif ($t | startswith(\"\\\"\")) then .k = $t else .k = null end) | .ok) | not then [] else [try fromjson] end; def parsed: if type == \"string\" then (strict | if length == 1 then .[0] else null end) else null end; def given: (.answer | parsed) | if type == \"object\" and keys_unsorted == [\"text\", \"attachments\"] then (.text | parsed) else . end; def nonblank: type == \"string\" and test(\"[^ \\\\t\\\\n\\\\r]\"); given as $g | if ($g | type) == \"object\" and ($g | has(\"seedUrls\")) and ($g.seedUrls | type == \"array\" and length > 0 and all(.[]; nonblank)) then $g.seedUrls else .shown.seedUrls end",
+        "outputSchema": "def strict: . as $raw | [scan(\"\\\"(?:[^\\\"\\\\\\\\\\\\x00-\\\\x1f]|\\\\\\\\[\\\"\\\\\\\\/bfnrt]|\\\\\\\\u[0-9a-fA-F]{4})*\\\"|-?(?:0|[1-9][0-9]*)(?:\\\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?(?![0-9.eE+-])|true|false|null|[{}\\\\[\\\\]:,]|[ \\\\t\\\\n\\\\r]+\")] as $tok | if ($tok | add // \"\") != $raw then [] elif (reduce ($tok[] | select(test(\"^[ \\\\t\\\\n\\\\r]\") | not)) as $t ({s: [], k: null, ok: true}; if .ok | not then . elif $t == \"{\" then .s += [[]] | .k = null elif $t == \"[\" then .s += [null] | .k = null elif $t == \"}\" or $t == \"]\" then .s |= .[:-1] | .k = null elif $t == \":\" then (if .k == null or (.s | length) == 0 or (.s[-1] | type) != \"array\" then .ok = false else (.k | fromjson) as $key | (.s | length - 1) as $n | if any(.s[$n][]; . == $key) then .ok = false else .s[$n] += [$key] | .k = null end end) elif ($t | startswith(\"\\\"\")) then .k = $t else .k = null end) | .ok) | not then [] else [try fromjson] end; def parsed: if type == \"string\" then (strict | if length == 1 then .[0] else null end) else null end; def given: (.answer | parsed) | if type == \"object\" and keys_unsorted == [\"text\", \"attachments\"] then (.text | parsed) else . end; given as $g | if ($g | type) == \"object\" and ($g | has(\"outputSchema\")) and ($g.outputSchema | type == \"object\" and ($g.type != \"scrape-schema\" or . != {\"type\": \"object\", \"properties\": {}})) then $g.outputSchema else .shown.outputSchema end",
+        "instructions": "def strict: . as $raw | [scan(\"\\\"(?:[^\\\"\\\\\\\\\\\\x00-\\\\x1f]|\\\\\\\\[\\\"\\\\\\\\/bfnrt]|\\\\\\\\u[0-9a-fA-F]{4})*\\\"|-?(?:0|[1-9][0-9]*)(?:\\\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?(?![0-9.eE+-])|true|false|null|[{}\\\\[\\\\]:,]|[ \\\\t\\\\n\\\\r]+\")] as $tok | if ($tok | add // \"\") != $raw then [] elif (reduce ($tok[] | select(test(\"^[ \\\\t\\\\n\\\\r]\") | not)) as $t ({s: [], k: null, ok: true}; if .ok | not then . elif $t == \"{\" then .s += [[]] | .k = null elif $t == \"[\" then .s += [null] | .k = null elif $t == \"}\" or $t == \"]\" then .s |= .[:-1] | .k = null elif $t == \":\" then (if .k == null or (.s | length) == 0 or (.s[-1] | type) != \"array\" then .ok = false else (.k | fromjson) as $key | (.s | length - 1) as $n | if any(.s[$n][]; . == $key) then .ok = false else .s[$n] += [$key] | .k = null end end) elif ($t | startswith(\"\\\"\")) then .k = $t else .k = null end) | .ok) | not then [] else [try fromjson] end; def parsed: if type == \"string\" then (strict | if length == 1 then .[0] else null end) else null end; def given: (.answer | parsed) | if type == \"object\" and keys_unsorted == [\"text\", \"attachments\"] then (.text | parsed) else . end; given as $g | if ($g | type) == \"object\" and ($g | has(\"instructions\")) and ($g.instructions | type == \"string\") then $g.instructions else \"\" end"
       },
       "llm_config": null,
       "retry": false,
@@ -1405,8 +1491,8 @@
       "http_method": "POST",
       "data": {
         "agent_id": "list-curator-agent",
-        "system": "You are a list-curator collector. Dispatch the child agents per the SKILL.md with agent_list, agent_run and agent_run_get, and read the CRM with crm_account_get. Build the candidate member rows against the APPROVED outputSchema. Do NOT create the list and do NOT add anyone to it - the list is created only after the person approves the members, by a later step. Return a single JSON object with {candidateMembers, dispatchedRuns, failures} - nothing else. dispatchedRuns lists one {runId, agent, status} entry per child run you started, so the person can open each of them. When you dispatch @cinatra-ai/web-scrape-agent with agent_run, its inputParams carry seedUrls, outputSchema and instructions, and outputSchemaSource as an empty object {} because the approved schema is handed over directly in outputSchema; a scrape dispatched without any of these four stops at a setup question nobody answers. When reviewAnswer is not empty, the person sent the previous candidate members back for revision: collect them again and follow the note in reviewAnswer.",
-        "user": "Collect the members for this curation against the approved schema.\nInputs:\n- intent: {{ intent }}\n- seedUrls: {{ seedUrls }}\n- outputSchema: {{ outputSchema }}\n- targetMemberType: {{ targetMemberType }}\n- reviewAnswer: {{ reviewAnswer }}",
+        "system": "You are a list-curator collector. Dispatch the child agents per the SKILL.md with agent_list, agent_run and agent_run_get, and read the CRM with crm_account_get. Build the candidate member rows against the APPROVED outputSchema. The seedUrls and the outputSchema below are the values the person approved, edits included: use them as given. When the instructions below are not empty, they are the instructions the person gave: follow them and hand them to the scrape as its instructions. Do NOT create the list and do NOT add anyone to it - the list is created only after the person approves the members, by a later step. Return a single JSON object with {candidateMembers, dispatchedRuns, failures} - nothing else. dispatchedRuns lists one {runId, agent, status} entry per child run you started, so the person can open each of them. When you dispatch @cinatra-ai/web-scrape-agent with agent_run, its inputParams carry seedUrls, outputSchema and instructions, and outputSchemaSource as an empty object {} because the approved schema is handed over directly in outputSchema; a scrape dispatched without any of these four stops at a setup question nobody answers. When reviewAnswer is not empty, the person sent the previous candidate members back for revision: collect them again and follow the note in reviewAnswer.",
+        "user": "Collect the members for this curation against the approved schema.\nInputs:\n- intent: {{ intent }}\n- seedUrls: {{ seedUrls }}\n- outputSchema: {{ outputSchema }}\n- instructions: {{ instructions }}\n- targetMemberType: {{ targetMemberType }}\n- reviewAnswer: {{ reviewAnswer }}",
         "agent_run_id": "{{ agent_run_id }}",
         "cinatra_llm": {
           "preferredProvider": "openai",
@@ -1430,6 +1516,11 @@
         {
           "title": "outputSchema",
           "type": "object"
+        },
+        {
+          "title": "instructions",
+          "type": "string",
+          "default": ""
         },
         {
           "title": "targetMemberType",
@@ -1544,8 +1635,7 @@
               },
               "listName": {
                 "type": "string",
-                "title": "List name",
-                "readOnly": true
+                "title": "List name"
               },
               "dispatchedRuns": {
                 "type": "array",
@@ -1631,12 +1721,16 @@
       "metadata": {
         "cinatra": {
           "purpose": "wrap-the-answer-of-list_gate",
-          "description": "Hands the answer given at list_gate to list_decision_parse as the one string of a JSON object, with every backtick escaped. The parse step splits its input on code fences and repairs text that is not JSON; this object holds no code fence and is JSON for every answer that the runtime's tojson writes, so the parse step does not split it, has nothing to repair and reads the answer as it was given, a lone low surrogate excepted: the pinned jq reads a lone low surrogate (U+DC00 to U+DFFF) as U+FFFD. In a string that gives no verdict, such as a note or an attachment's metadata, the answer keeps its decision; in the decision value, in a host marker, in the decision key, or in two keys of one object that both become U+FFFD, it makes the answer unknown. An answer that holds a lone high surrogate character (U+D800 to U+DBFF) is unknown too: tojson writes it as an escape that the pinned jq refuses, so the parse step gives no verdict."
+          "description": "Hands the answer given at list_gate to list_decision_parse as the one string of a JSON object, with every backtick escaped. The parse step splits its input on code fences and repairs text that is not JSON; this object holds no code fence and is JSON for every answer that the runtime's tojson writes, so the parse step does not split it, has nothing to repair and reads the answer as it was given, a lone low surrogate excepted: the pinned jq reads a lone low surrogate (U+DC00 to U+DFFF) as U+FFFD. In a string that gives no verdict, such as a note or an attachment's metadata, the answer keeps its decision; in the decision value, in a host marker, in the decision key, or in two keys of one object that both become U+FFFD, it makes the answer unknown. An answer that holds a lone high surrogate character (U+D800 to U+DBFF) is unknown too: tojson writes it as an escape that the pinned jq refuses, so the parse step gives no verdict. Beside the answer it hands over the values that the review showed, under `shown`, so that an approve without an edit runs with them; they are written the same way."
         }
       },
       "inputs": [
         {
           "title": "answer",
+          "type": "string"
+        },
+        {
+          "title": "listName",
           "type": "string"
         }
       ],
@@ -1651,7 +1745,7 @@
       ],
       "input_mapping": {},
       "output_mapping": {},
-      "template": "{\"answer\": {{ answer | tojson | replace('`', '\\\\u0060') }} }",
+      "template": "{\"answer\": {{ answer | tojson | replace('`', '\\\\u0060') }}, \"shown\": {\"listName\": {{ listName | tojson | replace('`', '\\\\u0060') }} } }",
       "component_plugin_name": "NodesPlugin",
       "component_plugin_version": "26.1.0"
     },
@@ -1662,7 +1756,7 @@
       "metadata": {
         "cinatra": {
           "purpose": "parse-the-answer-of-list_gate",
-          "description": "Parses the answer given at list_gate, handed over by list_answer_wrap, and returns its verdict. The answer is read only when it is strict JSON: every token is written as JSON writes it, no object holds a key twice, and nothing but whitespace follows the value; a string that holds a lone high surrogate is refused, and a lone low surrogate is read as U+FFFD; JSON that differs only in spacing, in the escapes it uses or in how it writes a number is read the same. The verdict is the top-level \"decision\" (approve, revise or reject, else unknown); inside the attachment envelope it is read from the `text` only, which is read in the same way, never from the attachments; nested data gives no verdict. The strict JSON rule covers the whole answer, the attachments and nested data included, so a key twice or a token that JSON does not write anywhere in it makes the answer unknown. A decision field counts only when the answer's `approved` field and `text` field, where present beside it, read the same verdict; two signals that disagree make the answer unknown. Without a decision field, only {\"approved\": false} (reject), {\"approved\": true} and the host's snapshot of this review (approve) are known; the host's bare markers \"[Approved by operator]\" and \"[Rejected by operator]\" are compared exactly. Anything else is unknown."
+          "description": "Parses the answer given at list_gate, handed over by list_answer_wrap, and returns its verdict. The answer is read only when it is strict JSON: every token is written as JSON writes it, no object holds a key twice, and nothing but whitespace follows the value; a string that holds a lone high surrogate is refused, and a lone low surrogate is read as U+FFFD; JSON that differs only in spacing, in the escapes it uses or in how it writes a number is read the same. The verdict is the top-level \"decision\" (approve, revise or reject, else unknown); inside the attachment envelope it is read from the `text` only, which is read in the same way, never from the attachments; nested data gives no verdict. The strict JSON rule covers the whole answer, the attachments and nested data included, so a key twice or a token that JSON does not write anywhere in it makes the answer unknown. A decision field counts only when the answer's `approved` field and `text` field, where present beside it, read the same verdict; two signals that disagree make the answer unknown. Without a decision field, only {\"approved\": false} (reject), {\"approved\": true} and the host's snapshot of this review (approve) are known; the host's bare markers \"[Approved by operator]\" and \"[Rejected by operator]\" are compared exactly. Anything else is unknown. It also returns the listName that create uses, from the same answer, read in the same way: the answer's listName when it is a string that is not blank, else the name that the review showed. The answer's nested data and attachments give no value."
         }
       },
       "inputs": [
@@ -1676,6 +1770,11 @@
           "title": "verdict",
           "type": "string",
           "default": ""
+        },
+        {
+          "title": "listName",
+          "type": "string",
+          "default": ""
         }
       ],
       "branches": [
@@ -1684,7 +1783,8 @@
       "input_mapping": {},
       "output_mapping": {},
       "output_values": {
-        "verdict": "def known: if . == \"approve\" or . == \"revise\" or . == \"reject\" then . else \"unknown\" end; def strict: . as $raw | [scan(\"\\\"(?:[^\\\"\\\\\\\\\\\\x00-\\\\x1f]|\\\\\\\\[\\\"\\\\\\\\/bfnrt]|\\\\\\\\u[0-9a-fA-F]{4})*\\\"|-?(?:0|[1-9][0-9]*)(?:\\\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?(?![0-9.eE+-])|true|false|null|[{}\\\\[\\\\]:,]|[ \\\\t\\\\n\\\\r]+\")] as $tok | if ($tok | add // \"\") != $raw then [] elif (reduce ($tok[] | select(test(\"^[ \\\\t\\\\n\\\\r]\") | not)) as $t ({s: [], k: null, ok: true}; if .ok | not then . elif $t == \"{\" then .s += [[]] | .k = null elif $t == \"[\" then .s += [null] | .k = null elif $t == \"}\" or $t == \"]\" then .s |= .[:-1] | .k = null elif $t == \":\" then (if .k == null or (.s | length) == 0 or (.s[-1] | type) != \"array\" then .ok = false else (.k | fromjson) as $key | (.s | length - 1) as $n | if any(.s[$n][]; . == $key) then .ok = false else .s[$n] += [$key] | .k = null end end) elif ($t | startswith(\"\\\"\")) then .k = $t else .k = null end) | .ok) | not then [] else [try fromjson] end; def textverdict(f): if type != \"string\" then \"unknown\" elif . == \"[Approved by operator]\" then \"approve\" elif . == \"[Rejected by operator]\" then \"reject\" else (strict as $p | if ($p | length) == 1 then ($p[0] | f) else \"unknown\" end) end; def verdict: if type != \"object\" then \"unknown\" elif has(\"decision\") then ((.decision | known) as $d | if has(\"approved\") and (if .approved == true then \"approve\" elif .approved == false then \"reject\" else \"unknown\" end) != $d then \"unknown\" elif has(\"text\") and (.text | textverdict(verdict)) != $d then \"unknown\" else $d end) elif . == {\"approved\": false} then \"reject\" elif . == {\"approved\": true} then \"approve\" elif keys_unsorted == [\"type\", \"listName\", \"memberRefs\", \"memberCount\", \"snapshotAt\"] and .type == \"final-list\" then \"approve\" else \"unknown\" end; if type == \"object\" and keys_unsorted == [\"answer\"] then (.answer | textverdict(if type == \"object\" and keys_unsorted == [\"text\", \"attachments\"] then (.text | textverdict(verdict)) else verdict end)) else \"unknown\" end"
+        "verdict": "def known: if . == \"approve\" or . == \"revise\" or . == \"reject\" then . else \"unknown\" end; def strict: . as $raw | [scan(\"\\\"(?:[^\\\"\\\\\\\\\\\\x00-\\\\x1f]|\\\\\\\\[\\\"\\\\\\\\/bfnrt]|\\\\\\\\u[0-9a-fA-F]{4})*\\\"|-?(?:0|[1-9][0-9]*)(?:\\\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?(?![0-9.eE+-])|true|false|null|[{}\\\\[\\\\]:,]|[ \\\\t\\\\n\\\\r]+\")] as $tok | if ($tok | add // \"\") != $raw then [] elif (reduce ($tok[] | select(test(\"^[ \\\\t\\\\n\\\\r]\") | not)) as $t ({s: [], k: null, ok: true}; if .ok | not then . elif $t == \"{\" then .s += [[]] | .k = null elif $t == \"[\" then .s += [null] | .k = null elif $t == \"}\" or $t == \"]\" then .s |= .[:-1] | .k = null elif $t == \":\" then (if .k == null or (.s | length) == 0 or (.s[-1] | type) != \"array\" then .ok = false else (.k | fromjson) as $key | (.s | length - 1) as $n | if any(.s[$n][]; . == $key) then .ok = false else .s[$n] += [$key] | .k = null end end) elif ($t | startswith(\"\\\"\")) then .k = $t else .k = null end) | .ok) | not then [] else [try fromjson] end; def textverdict(f): if type != \"string\" then \"unknown\" elif . == \"[Approved by operator]\" then \"approve\" elif . == \"[Rejected by operator]\" then \"reject\" else (strict as $p | if ($p | length) == 1 then ($p[0] | f) else \"unknown\" end) end; def verdict: if type != \"object\" then \"unknown\" elif has(\"decision\") then ((.decision | known) as $d | if has(\"approved\") and (if .approved == true then \"approve\" elif .approved == false then \"reject\" else \"unknown\" end) != $d then \"unknown\" elif has(\"text\") and (.text | textverdict(verdict)) != $d then \"unknown\" else $d end) elif . == {\"approved\": false} then \"reject\" elif . == {\"approved\": true} then \"approve\" elif keys_unsorted == [\"type\", \"listName\", \"memberRefs\", \"memberCount\", \"snapshotAt\"] and .type == \"final-list\" then \"approve\" else \"unknown\" end; if type == \"object\" and keys_unsorted == [\"answer\", \"shown\"] then (.answer | textverdict(if type == \"object\" and keys_unsorted == [\"text\", \"attachments\"] then (.text | textverdict(verdict)) else verdict end)) else \"unknown\" end",
+        "listName": "def strict: . as $raw | [scan(\"\\\"(?:[^\\\"\\\\\\\\\\\\x00-\\\\x1f]|\\\\\\\\[\\\"\\\\\\\\/bfnrt]|\\\\\\\\u[0-9a-fA-F]{4})*\\\"|-?(?:0|[1-9][0-9]*)(?:\\\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?(?![0-9.eE+-])|true|false|null|[{}\\\\[\\\\]:,]|[ \\\\t\\\\n\\\\r]+\")] as $tok | if ($tok | add // \"\") != $raw then [] elif (reduce ($tok[] | select(test(\"^[ \\\\t\\\\n\\\\r]\") | not)) as $t ({s: [], k: null, ok: true}; if .ok | not then . elif $t == \"{\" then .s += [[]] | .k = null elif $t == \"[\" then .s += [null] | .k = null elif $t == \"}\" or $t == \"]\" then .s |= .[:-1] | .k = null elif $t == \":\" then (if .k == null or (.s | length) == 0 or (.s[-1] | type) != \"array\" then .ok = false else (.k | fromjson) as $key | (.s | length - 1) as $n | if any(.s[$n][]; . == $key) then .ok = false else .s[$n] += [$key] | .k = null end end) elif ($t | startswith(\"\\\"\")) then .k = $t else .k = null end) | .ok) | not then [] else [try fromjson] end; def parsed: if type == \"string\" then (strict | if length == 1 then .[0] else null end) else null end; def given: (.answer | parsed) | if type == \"object\" and keys_unsorted == [\"text\", \"attachments\"] then (.text | parsed) else . end; def nonblank: type == \"string\" and test(\"[^ \\\\t\\\\n\\\\r]\"); given as $g | if ($g | type) == \"object\" and ($g | has(\"listName\")) and ($g.listName | nonblank) then $g.listName else .shown.listName end"
       },
       "llm_config": null,
       "retry": false,

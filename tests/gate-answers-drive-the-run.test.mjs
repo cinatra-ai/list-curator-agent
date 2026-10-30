@@ -12,10 +12,12 @@
 //   - an InputMessageNode takes the next answer as its `userResponse`, and the
 //     run pauses there when no answer is left;
 //   - a PluginExtractNode (the runtime's ExtractValueFromJsonStep) parses its
-//     text and runs its jq program; the trace follows only the program this
-//     flow pins (EXPECTED_PROGRAM below) through a JavaScript twin, and only for
-//     a text that the runtime's extractor reads whole: one strict JSON text
-//     without a code fence, as the wrap step writes it (see parseLikeTheStep);
+//     text and runs a jq program per output; the trace follows only the programs
+//     this flow pins (EXPECTED_PROGRAM and valuePrograms below) through JavaScript
+//     twins, and only for a text that the runtime's extractor reads whole: one
+//     strict JSON text without a code fence, as the wrap step writes it (see
+//     parseLikeTheStep). A program that gives null leaves its output to the
+//     output's default, as the runtime's extractor does;
 //   - a PluginTemplateNode renders its template with the template reader below
 //     (not Jinja; its contract lists what it reads) and writes it
 //     as its one output, `output` or the name that its output_mapping gives;
@@ -160,8 +162,10 @@ const scenarios = JSON.parse(
 //   list and length ("applies whitespace control, ..."); first (not driven by a
 //   test).
 // - tojson of a string ("writes a string with tojson as the runtime's Jinja
-//   does"); tojson of another value throws ("refuses a construct it does not
-//   follow").
+//   does"); of a list, a dict, a number, true, false and null ("writes a list
+//   and a dict with tojson as the runtime's Jinja does"; a dict's keys in their
+//   own order; a number as JavaScript writes it, which reads as the same value); of
+//   an undefined value it throws ("refuses a construct it does not follow").
 // - A filter's function gets the arguments the template gives and ignores ones
 //   it does not take, for example length(1) (not driven by a test). A filter
 //   given a value or arguments it does not take throws, for example lower of a
@@ -430,23 +434,33 @@ const FILTERS = {
  * Jinja's tojson of a string: Python's json.dumps (ensure_ascii: every
  * character outside space..tilde as \uXXXX in lower-case hex, a character
  * above U+FFFF as its surrogate pair), then <, >, & and ' as <, >,
- * & and ' (jinja2 utils.htmlsafe_json_dumps). Only a string is
- * followed.
+ * & and ' (jinja2 utils.htmlsafe_json_dumps; the runtime's template environment
+ * keeps a dict's keys in their own order). A value that JSON does not hold throws.
  */
 function pyHtmlSafeJsonString(v) {
-  if (typeof v !== "string") throw new Error("tojson of a non-string is not followed");
   const hex = (n) => `\\u${n.toString(16).padStart(4, "0")}`;
   const SHORT = { '"': '\\"', "\\": "\\\\", "\n": "\\n", "\r": "\\r", "\t": "\\t", "\b": "\\b", "\f": "\\f" };
-  let out = '"';
-  for (const ch of v) {
-    const c = ch.codePointAt(0);
-    if (SHORT[ch]) out += SHORT[ch];
-    else if (c >= 0x20 && c <= 0x7e) out += ch;
-    else if (c > 0xffff) out += hex(0xd800 + ((c - 0x10000) >> 10)) + hex(0xdc00 + ((c - 0x10000) & 0x3ff));
-    else out += hex(c);
-  }
-  out += '"';
-  return out.replaceAll("<", "\\u003c").replaceAll(">", "\\u003e").replaceAll("&", "\\u0026").replaceAll("'", "\\u0027");
+  const dumps = (x) => {
+    if (x === null) return "null";
+    if (typeof x === "number" || typeof x === "boolean") return String(x);
+    if (Array.isArray(x)) return `[${x.map(dumps).join(", ")}]`;
+    if (isMapping(x)) {
+      return `{${Object.keys(x)
+        .map((k) => `${dumps(k)}: ${dumps(x[k])}`)
+        .join(", ")}}`;
+    }
+    if (typeof x !== "string") throw new Error(`tojson of a ${typeof x} is not followed`);
+    let out = '"';
+    for (const ch of x) {
+      const c = ch.codePointAt(0);
+      if (SHORT[ch]) out += SHORT[ch];
+      else if (c >= 0x20 && c <= 0x7e) out += ch;
+      else if (c > 0xffff) out += hex(0xd800 + ((c - 0x10000) >> 10)) + hex(0xdc00 + ((c - 0x10000) & 0x3ff));
+      else out += hex(c);
+    }
+    return `${out}"`;
+  };
+  return dumps(v).replaceAll("<", "\\u003c").replaceAll(">", "\\u003e").replaceAll("&", "\\u0026").replaceAll("'", "\\u0027");
 }
 
 function evaluate(node, scope) {
@@ -672,7 +686,8 @@ function renderTemplate(template, variables) {
 // The parse step. Its jq program is pinned: the same text as the flow's, built
 // from the review's snapshot (core hitl-gate-submit.ts:352-389).
 //
-// The wrap step hands the parse step {"answer": <the answer as a JSON string>}
+// The wrap step hands the parse step {"answer": <the answer as a JSON string>,
+// "shown": <the values that the review showed>}
 // with every backtick escaped, so the runtime's extractor, which splits its
 // text on three backticks and repairs each part (json_repair), gets one strict
 // JSON text and parses it whole. The program reads the answer by its parsed
@@ -688,9 +703,7 @@ const SNAPSHOTS = {
 const TOKEN = String.raw`"(?:[^"\\\x00-\x1f]|\\["\\/bfnrt]|\\u[0-9a-fA-F]{4})*"|-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?(?![0-9.eE+-])|true|false|null|[{}\[\]:,]|[ \t\n\r]+`;
 const SPACE = String.raw`^[ \t\n\r]`;
 
-function EXPECTED_PROGRAM(snapshot) {
-  return (
-    'def known: if . == "approve" or . == "revise" or . == "reject" then . else "unknown" end; ' +
+const STRICT_DEF =
     "def strict: . as $raw " +
     `| [scan(${JSON.stringify(TOKEN)})] as $tok ` +
     '| if ($tok | add // "") != $raw then [] ' +
@@ -705,7 +718,12 @@ function EXPECTED_PROGRAM(snapshot) {
     "| if any(.s[$n][]; . == $key) then .ok = false else .s[$n] += [$key] | .k = null end end) " +
     'elif ($t | startswith("\\"")) then .k = $t ' +
     "else .k = null end) | .ok) | not then [] " +
-    "else [try fromjson] end; " +
+    "else [try fromjson] end; ";
+
+function EXPECTED_PROGRAM(snapshot) {
+  return (
+    'def known: if . == "approve" or . == "revise" or . == "reject" then . else "unknown" end; ' +
+    STRICT_DEF +
     "def textverdict(f): " +
     'if type != "string" then "unknown" ' +
     'elif . == "[Approved by operator]" then "approve" ' +
@@ -721,12 +739,63 @@ function EXPECTED_PROGRAM(snapshot) {
     'elif . == {"approved": true} then "approve" ' +
     `elif keys_unsorted == ${JSON.stringify(snapshot.keys).replaceAll(",", ", ")} and .type == "${snapshot.type}" then "approve" ` +
     'else "unknown" end; ' +
-    'if type == "object" and keys_unsorted == ["answer"] ' +
+    'if type == "object" and keys_unsorted == ["answer", "shown"] ' +
     'then (.answer | textverdict(if type == "object" and keys_unsorted == ["text", "attachments"] ' +
     "then (.text | textverdict(verdict)) else verdict end)) " +
     'else "unknown" end'
   );
 }
+
+/** The program of one value of a review's answer: the answer's value when it has the form, else `otherwise`. */
+function valueProgram(field, defs, valid, otherwise) {
+  return (
+    STRICT_DEF +
+    'def parsed: if type == "string" then (strict | if length == 1 then .[0] else null end) else null end; ' +
+    'def given: (.answer | parsed) | if type == "object" and keys_unsorted == ["text", "attachments"] then (.text | parsed) else . end; ' +
+    defs +
+    "given as $g | " +
+    `if ($g | type) == "object" and ($g | has("${field}")) and ($g.${field} | ${valid}) then $g.${field} else ${otherwise} end`
+  );
+}
+
+const NONBLANK_DEF = 'def nonblank: type == "string" and test("[^ \\\\t\\\\n\\\\r]"); ';
+const isNonBlank = (v) => typeof v === "string" && /[^ \t\n\r]/.test(v);
+
+// The values each parse step returns beside the verdict: the pinned program, the
+// output's default, and the JavaScript twin of the program ($g is the parsed
+// answer, or null; shown is the wrap step's `shown`).
+const VALUES = {
+  schema_decision_parse: {
+    seedUrls: {
+      program: valueProgram("seedUrls", NONBLANK_DEF, 'type == "array" and length > 0 and all(.[]; nonblank)', ".shown.seedUrls"),
+      default: [],
+      twin: (g, shown) => (Array.isArray(g?.seedUrls) && g.seedUrls.length > 0 && g.seedUrls.every(isNonBlank) ? g.seedUrls : shown?.seedUrls),
+    },
+    outputSchema: {
+      program: valueProgram("outputSchema", "", 'type == "object" and ($g.type != "scrape-schema" or . != {"type": "object", "properties": {}})', ".shown.outputSchema"),
+      default: {},
+      twin: (g, shown) => {
+        const v = g?.outputSchema;
+        if (!isObject(v)) return shown?.outputSchema;
+        const placeholder =
+          sameList(Object.keys(v).sort(), ["properties", "type"]) && v.type === "object" && isObject(v.properties) && Object.keys(v.properties).length === 0;
+        return g.type === "scrape-schema" && placeholder ? shown?.outputSchema : v;
+      },
+    },
+    instructions: {
+      program: valueProgram("instructions", "", 'type == "string"', '""'),
+      default: "",
+      twin: (g) => (typeof g?.instructions === "string" ? g.instructions : ""),
+    },
+  },
+  list_decision_parse: {
+    listName: {
+      program: valueProgram("listName", NONBLANK_DEF, "nonblank", ".shown.listName"),
+      default: "",
+      twin: (g, shown) => (isNonBlank(g?.listName) ? g.listName : shown?.listName),
+    },
+  },
+};
 
 const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const sameList = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
@@ -809,8 +878,20 @@ function jqVerdict(wrapped, snapshot) {
     return "unknown";
   };
   const top = (v) => (isObject(v) && sameList(Object.keys(v), ["text", "attachments"]) ? textVerdict(v.text, verdict) : verdict(v));
-  if (!isObject(wrapped) || !sameList(Object.keys(wrapped), ["answer"])) return "unknown";
+  if (!isObject(wrapped) || !sameList(Object.keys(wrapped), ["answer", "shown"])) return "unknown";
   return textVerdict(wrapped.answer, top);
+}
+
+/** The twin of `given`: the answer as a parsed value, inside the attachment envelope its text; else null. */
+function jqGiven(wrapped) {
+  const parsed = (t) => {
+    if (typeof t !== "string") return null;
+    const value = strictParse(t);
+    return value.length === 1 ? value[0] : null;
+  };
+  const answer = parsed(wrapped.answer);
+  const g = isObject(answer) && sameList(Object.keys(answer), ["text", "attachments"]) ? parsed(answer.text) : answer;
+  return isObject(g) ? g : null;
 }
 
 /**
@@ -824,17 +905,25 @@ function parseLikeTheStep(node, text) {
   const snapshot = Object.hasOwn(SNAPSHOTS, node.id) ? SNAPSHOTS[node.id] : undefined;
   if (!snapshot) throw new Error(`no snapshot for parse step ${node.id}`);
   const ov = node.output_values ?? {};
-  if (!sameList(Object.keys(ov), ["verdict"]) || ov.verdict !== EXPECTED_PROGRAM(snapshot)) {
+  const values = VALUES[node.id];
+  const names = Object.keys(values);
+  if (!sameList(Object.keys(ov), ["verdict", ...names]) || ov.verdict !== EXPECTED_PROGRAM(snapshot) || names.some((n) => ov[n] !== values[n].program)) {
     throw new Error(`${node.id}: a jq program this trace does not follow`);
   }
   if (node.llm_config !== null || node.retry !== false) throw new Error(`${node.id}: only a parse without a model and without retry is followed`);
-  if (!sameList((node.outputs ?? []).map((o) => [o.title, o.default].join("=")), ["verdict="])) {
-    throw new Error(`${node.id}: only the one output verdict with the default "" is followed`);
+  const declared = (node.outputs ?? []).map((o) => JSON.stringify([o.title, o.default]));
+  const expected = [["verdict", ""], ...names.map((n) => [n, values[n].default])].map((o) => JSON.stringify(o));
+  if (!sameList(declared, expected)) {
+    throw new Error(`${node.id}: only the outputs verdict and its values, each with its default, are followed`);
   }
   if (text.includes("```")) throw new Error(`${node.id}: the extractor would split this text on a code fence`);
   if (/^\s*\[?\s*(?:json|JSON)/.test(text)) throw new Error(`${node.id}: the extractor would strip a label from this text`);
   if (strictParse(text).length !== 1) throw new Error(`${node.id}: the extractor would repair this text`);
-  return { verdict: jqVerdict(jqStrings(JSON.parse(text)), snapshot) };
+  const wrapped = jqStrings(JSON.parse(text));
+  const result = { verdict: jqVerdict(wrapped, snapshot) };
+  const g = jqGiven(wrapped);
+  for (const name of names) result[name] = values[name].twin(g, wrapped.shown) ?? values[name].default;
+  return result;
 }
 
 /**
@@ -1038,8 +1127,26 @@ describe("the answers at the reviews drive the run", () => {
         expect(call, `${scenario.note.step} runs again`).toBeTruthy();
         expect(String(call.inputs[scenario.note.input])).toContain(scenario.note.contains);
       }
+      if (scenario.receives) {
+        const received = scenario.receives.map((want) => {
+          const inputs = result.calls.filter((c) => c.step === want.step)[want.call]?.inputs ?? {};
+          return { ...want, inputs: Object.fromEntries(Object.keys(want.inputs).map((name) => [name, inputs[name]])) };
+        });
+        expect(received, "the values that the steps receive").toEqual(scenario.receives);
+      }
     });
   }
+});
+
+describe("the values that a review showed come from the step that proposed them", () => {
+  it("runs collect with this run's proposal when the approve carries no edit", () => {
+    const proposal = { seedUrls: ["https://example.test/z"], outputSchema: { type: "object", title: "z" }, plan: "p" };
+    const result = runFlow(['{"decision":"approve"}', '{"decision":"approve"}'], oas, { ...CANNED, propose: proposal });
+    const collect = result.calls.find((c) => c.step === "collect");
+    expect(collect.inputs.seedUrls).toEqual(proposal.seedUrls);
+    expect(collect.inputs.outputSchema).toEqual(proposal.outputSchema);
+    expect(collect.inputs.instructions).toBe("");
+  });
 });
 
 describe("the template reader of the step trace", () => {
@@ -1069,7 +1176,19 @@ describe("the template reader of the step trace", () => {
     expect(renderTemplate("{{ s | tojson }}", { s: 'a"b\\<>&\'`\u007fé\u{1F600}\n\u0001' })).toBe(
       '"a\\"b\\\\\\u003c\\u003e\\u0026\\u0027`\\u007f\\u00e9\\ud83d\\ude00\\n\\u0001"',
     );
-    expect(renderTemplate(refs.list_answer_wrap.template, { answer: "x```y" })).toBe('{"answer": "x\\u0060\\u0060\\u0060y" }');
+    expect(renderTemplate(refs.list_answer_wrap.template, { answer: "x```y", listName: "a`b" })).toBe(
+      '{"answer": "x\\u0060\\u0060\\u0060y", "shown": {"listName": "a\\u0060b" } }',
+    );
+  });
+
+  it("writes a list and a dict with tojson as the runtime's Jinja does", () => {
+    // The text that the runtime's jinja2 writes for this input: the keys in their own order.
+    expect(renderTemplate("{{ v | tojson }}", { v: { b: ["x<", 1, true, false, null], a: { d: "`é", c: {} } } })).toBe(
+      '{"b": ["x\\u003c", 1, true, false, null], "a": {"d": "`\\u00e9", "c": {}}}',
+    );
+    expect(
+      renderTemplate(refs.schema_answer_wrap.template, { answer: "{}", seedUrls: ["u`"], outputSchema: { title: "`" } }),
+    ).toBe('{"answer": "{}", "shown": {"seedUrls": ["u\\u0060"], "outputSchema": {"title": "\\u0060"} } }');
   });
 
   it("refuses a constant name as an assignment target", () => {
@@ -1137,7 +1256,7 @@ describe("the template reader of the step trace", () => {
     expect(() => renderTemplate("{{ d['k'] }}", { d: {} })).toThrow();
     expect(() => renderTemplate("{{ d[0] }}", { d: ["a"] })).toThrow();
     expect(() => renderTemplate("{% if x is string %}{% endif %}", { x: "a" })).toThrow();
-    expect(() => renderTemplate("{{ x | tojson }}", { x: 1 })).toThrow();
+    expect(() => renderTemplate("{{ x | tojson }}", { x: undefined })).toThrow();
     expect(() => renderTemplate("a {#- x #}b", {})).toThrow();
     expect(() => renderTemplate("a {# x -#} b", {})).toThrow();
   });
@@ -1317,17 +1436,30 @@ describe("the closing message tells what happened after create", () => {
 describe("the step trace reads the parse step the way the runtime does", () => {
   const node = refs.list_decision_parse;
   const snap = SNAPSHOTS.list_decision_parse;
-  const read = (answer) => jqVerdict({ answer }, snap);
+  const read = (answer) => jqVerdict({ answer, shown: {} }, snap);
   const j = (v) => JSON.stringify(v);
   const envelope = (text) => j({ text, attachments: [] });
 
   it("follows only the pinned jq program", () => {
-    const text = '{"answer": "{}" }';
+    const text = '{"answer": "{}", "shown": {"listName": "n"} }';
     expect(() => parseLikeTheStep({ ...node, output_values: { ...node.output_values, verdict: ".decision" } }, text)).toThrow();
+    expect(() => parseLikeTheStep({ ...node, output_values: { ...node.output_values, listName: ".answer" } }, text)).toThrow();
+    expect(() => parseLikeTheStep({ ...node, outputs: node.outputs.slice(0, 1) }, text)).toThrow();
     expect(() => parseLikeTheStep({ ...node, output_values: { ...node.output_values, canonical: "tojson" } }, text)).toThrow();
     expect(() => parseLikeTheStep({ ...node, retry: true }, text)).toThrow();
     expect(() => parseLikeTheStep({ ...node, id: "other_parse" }, text)).toThrow();
-    expect(parseLikeTheStep(node, text)).toEqual({ verdict: "unknown" });
+    expect(parseLikeTheStep(node, text)).toEqual({ verdict: "unknown", listName: "n" });
+  });
+
+  it("leaves an output that its program does not give to the output's default", () => {
+    const text = '{"answer": "{}", "shown": {} }';
+    expect(parseLikeTheStep(node, text)).toEqual({ verdict: "unknown", listName: "" });
+    expect(parseLikeTheStep(refs.schema_decision_parse, text)).toEqual({ verdict: "unknown", seedUrls: [], outputSchema: {}, instructions: "" });
+  });
+
+  it("does not read the verdict from a text without the values shown", () => {
+    expect(parseLikeTheStep(node, JSON.stringify({ answer: '{"decision":"approve"}' })).verdict).toBe("unknown");
+    expect(parseLikeTheStep(node, JSON.stringify({ answer: '{"decision":"approve"}', shown: {} })).verdict).toBe("approve");
   });
 
   it("refuses a text that the extractor would not read whole", () => {
