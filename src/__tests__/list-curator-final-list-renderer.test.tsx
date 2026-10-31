@@ -7,8 +7,11 @@
  * (first-party @cinatra-ai/* optional peers); the monorepo runs it.
  *
  * Asserts:
- *   - Mounts render the listName Input, the memberRefs preview, and the
- *     Approve list + Cancel buttons.
+ *   - Mounts render the listName Input, the members of the value that the
+ *     flow's list_gate inputs give (candidateMembers), and the Approve list +
+ *     Cancel buttons (issue 72).
+ *   - A member's label is a name-like string field of its row, else
+ *     "Member N". The screen never draws a row's raw keys or JSON.
  *   - Approve emits onChange({approved: true, listName, userResponse}), the
  *     userResponse carrying decision "approve" (issue 65: the run reads the
  *     decision from the answer the host sends, and a renderer-authored
@@ -19,6 +22,10 @@
  *   - Approve is disabled when listName is empty.
  *   - Failures section renders when failures.length > 0.
  */
+import { readFileSync } from "node:fs";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import React from "react";
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
@@ -28,26 +35,28 @@ import { ListCuratorFinalListRenderer } from "../list-curator-final-list-rendere
 
 const MINIMAL_CONTEXT: FieldRendererProps["context"] = { connectedApps: [] };
 
+const oas = JSON.parse(
+  readFileSync(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), "../../cinatra/oas.json"),
+    "utf8",
+  ),
+);
+
+// The value that the flow's list_gate inputs give: its keys are read against
+// the flow in the first test below.
 const BASE_VALUE = {
-  listName: "YC W24 Founders",
-  memberRefs: [
-    {
-      objectType: "@cinatra-ai/entity-accounts:account",
-      objectId: "acc_1",
-      displayName: "Acme Corp",
-    },
-    {
-      objectType: "@cinatra-ai/entity-contacts:contact",
-      objectId: "ct_1",
-      displayName: "Jane Founder",
-      accountId: "acc_1",
-    },
+  candidateMembers: [
+    { name: "Acme Corp", domain: "acme.test" },
+    { name: "Jane Founder", email: "jane@acme.test" },
   ],
-  memberCount: 2,
-  accountsCreated: 1,
-  contactsCreated: 1,
+  listName: "YC W24 Founders",
+  dispatchedRuns: [],
   failures: [],
 };
+
+function withMembers(candidateMembers: unknown) {
+  return { ...BASE_VALUE, candidateMembers };
+}
 
 function renderField(overrides: { value?: unknown } = {}) {
   const onChange = vi.fn();
@@ -71,12 +80,21 @@ describe("ListCuratorFinalListRenderer", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders List name input, memberRefs preview, Approve list + Cancel buttons", () => {
+  it("takes the value that the list_gate inputs of the flow give", () => {
+    const inputs = oas.$referenced_components.list_gate.inputs.map(
+      (input: { title: string }) => input.title,
+    );
+    expect(Object.keys(BASE_VALUE).sort()).toEqual([...inputs].sort());
+  });
+
+  it("renders List name input, the members, Approve list + Cancel buttons", () => {
     renderField();
     expect(screen.getByLabelText(/list name/i)).toBeDefined();
     expect(screen.getByDisplayValue("YC W24 Founders")).toBeDefined();
     expect(screen.getByText("Acme Corp")).toBeDefined();
     expect(screen.getByText("Jane Founder")).toBeDefined();
+    expect(screen.getByText("2 members")).toBeDefined();
+    expect(screen.queryByText("No members.")).toBeNull();
     expect(screen.getByRole("button", { name: /approve list/i })).toBeDefined();
     expect(screen.getByRole("button", { name: /cancel/i })).toBeDefined();
   });
@@ -108,6 +126,71 @@ describe("ListCuratorFinalListRenderer", () => {
       name: /approve list/i,
     }) as HTMLButtonElement;
     expect(btn.disabled).toBe(true);
+  });
+
+  it("labels a member from a name-like string field, in any spelling of its key", () => {
+    renderField({
+      value: withMembers([
+        { full_name: "Ann Lee" },
+        { DisplayName: "Bea Ray" },
+        { "company name": "Cedar Ltd" },
+        { accountName: "Dune Inc", name: "Eve Moss" },
+      ]),
+    });
+    expect(screen.getByText("Ann Lee")).toBeDefined();
+    expect(screen.getByText("Bea Ray")).toBeDefined();
+    expect(screen.getByText("Cedar Ltd")).toBeDefined();
+    expect(screen.getByText("Eve Moss")).toBeDefined();
+    expect(screen.queryByText("Dune Inc")).toBeNull();
+  });
+
+  it('labels every other row "Member N", and draws no raw key or JSON of it', () => {
+    const { container } = renderField({
+      value: withMembers([
+        { email: "raw-email@acme.test", title: "raw-title" },
+        { name: 7 },
+        { name: "   " },
+        { name: '{"raw-json":1}' },
+        { name: "[raw-list]" },
+        null,
+        "raw-string",
+        3,
+        ["raw-item"],
+      ]),
+    });
+    for (let n = 1; n <= 9; n += 1) {
+      expect(screen.getByText(`Member ${n}`)).toBeDefined();
+    }
+    expect(screen.getByText("9 members")).toBeDefined();
+    expect(container.textContent).not.toMatch(/raw-|email|title|\{|\[/);
+  });
+
+  it("reads one member and no members in their own words", () => {
+    renderField({ value: withMembers([{ name: "Ann Lee" }]) });
+    expect(screen.getByText("1 member")).toBeDefined();
+    cleanup();
+    renderField({ value: withMembers([]) });
+    expect(screen.getByText("0 members")).toBeDefined();
+    expect(screen.getByText("No members.")).toBeDefined();
+    cleanup();
+    renderField({ value: withMembers({ name: "not a list" }) });
+    expect(screen.getByText("0 members")).toBeDefined();
+    expect(screen.getByText("No members.")).toBeDefined();
+  });
+
+  it("reads no value that the run does not give this review", () => {
+    const { container } = renderField({
+      value: {
+        ...BASE_VALUE,
+        memberRefs: [{ objectType: "x:contact", objectId: "ct_hand", displayName: "Hand Written" }],
+        memberCount: 40,
+        accountsCreated: 5,
+        contactsCreated: 6,
+      },
+    });
+    expect(screen.queryByText("Hand Written")).toBeNull();
+    expect(screen.getByText("2 members")).toBeDefined();
+    expect(container.textContent).not.toMatch(/created/);
   });
 
   it("renders failures section when failures.length > 0", () => {

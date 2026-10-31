@@ -29,13 +29,6 @@ import type { FieldRendererProps } from "@cinatra-ai/sdk-ui/field-renderer-props
 // Value shape
 // ---------------------------------------------------------------------------
 
-type MemberRef = {
-  objectType: string;
-  objectId: string;
-  displayName?: string;
-  accountId?: string; // optional grouping hint for the "mixed" case
-};
-
 type FailureItem = {
   rowIndex?: number;
   stage?: string;
@@ -45,25 +38,15 @@ type FailureItem = {
 
 type FinalListValue = {
   listName: string;
-  memberRefs: MemberRef[];
-  memberCount: number;
-  accountsCreated: number;
-  contactsCreated: number;
+  // The rows that create receives. Their members are set by the schema the
+  // person approved for this run, so a row can hold anything.
+  candidateMembers: unknown[];
   failures: FailureItem[];
 };
 
 function toFinalListValue(value: unknown): FinalListValue {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     const v = value as Record<string, unknown>;
-    const memberRefs = Array.isArray(v.memberRefs)
-      ? (v.memberRefs.filter((r) => {
-          if (!r || typeof r !== "object") return false;
-          const ref = r as Record<string, unknown>;
-          return (
-            typeof ref.objectType === "string" && typeof ref.objectId === "string"
-          );
-        }) as MemberRef[])
-      : [];
     const failures = Array.isArray(v.failures)
       ? (v.failures.filter(
           (f) => f && typeof f === "object",
@@ -71,28 +54,48 @@ function toFinalListValue(value: unknown): FinalListValue {
       : [];
     return {
       listName: typeof v.listName === "string" ? v.listName : "",
-      memberRefs,
-      memberCount:
-        typeof v.memberCount === "number" ? v.memberCount : memberRefs.length,
-      accountsCreated: typeof v.accountsCreated === "number" ? v.accountsCreated : 0,
-      contactsCreated: typeof v.contactsCreated === "number" ? v.contactsCreated : 0,
+      candidateMembers: Array.isArray(v.candidateMembers) ? v.candidateMembers : [],
       failures,
     };
   }
   return {
     listName: "",
-    memberRefs: [],
-    memberCount: 0,
-    accountsCreated: 0,
-    contactsCreated: 0,
+    candidateMembers: [],
     failures: [],
   };
 }
 
-function shortObjectType(objectType: string): string {
-  if (objectType.endsWith(":account")) return "account";
-  if (objectType.endsWith(":contact")) return "contact";
-  return objectType;
+// The keys that name a member, in order of preference, as memberLabel compares
+// them: lower case, with no space, underscore or hyphen. A key like "title" or
+// "email" is no name, so it is left out.
+const NAME_KEYS = [
+  "name",
+  "fullname",
+  "displayname",
+  "companyname",
+  "accountname",
+  "contactname",
+  "organizationname",
+  "organisationname",
+  "personname",
+  "membername",
+];
+
+/** The label of a row: a name-like string field, else "Member N". Never a raw key or JSON. */
+function memberLabel(row: unknown, index: number): string {
+  const fallback = `Member ${index + 1}`;
+  if (!row || typeof row !== "object" || Array.isArray(row)) return fallback;
+  const byKey = new Map<string, string>();
+  for (const [key, field] of Object.entries(row)) {
+    if (typeof field !== "string") continue;
+    const name = key.toLowerCase().replace(/[\s_-]/g, "");
+    if (!byKey.has(name)) byKey.set(name, field.trim());
+  }
+  for (const key of NAME_KEYS) {
+    const label = byKey.get(key);
+    if (label && !/^[{[]/.test(label)) return label;
+  }
+  return fallback;
 }
 
 // ---------------------------------------------------------------------------
@@ -156,9 +159,10 @@ export function ListCuratorFinalListRenderer({
 
         <Card className="border-line bg-surface-muted backdrop-blur-none">
           <CardContent className="flex flex-wrap gap-2 py-3">
-            <Badge variant="secondary">{v.memberCount} members</Badge>
-            <Badge variant="secondary">{v.accountsCreated} accounts created</Badge>
-            <Badge variant="secondary">{v.contactsCreated} contacts created</Badge>
+            <Badge variant="secondary">
+              {v.candidateMembers.length}{" "}
+              {v.candidateMembers.length === 1 ? "member" : "members"}
+            </Badge>
           </CardContent>
         </Card>
 
@@ -167,24 +171,13 @@ export function ListCuratorFinalListRenderer({
             <CardTitle className="text-base">Members</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
-            {v.memberRefs.length === 0 ? (
+            {v.candidateMembers.length === 0 ? (
               <p className="text-sm text-muted-foreground">No members.</p>
             ) : (
-              v.memberRefs.map((ref, idx) => (
-                <div
-                  key={`${ref.objectType}:${ref.objectId}:${idx}`}
-                  className="flex items-center gap-2"
-                >
-                  <Badge variant="outline">{shortObjectType(ref.objectType)}</Badge>
-                  <span className="text-sm text-foreground">
-                    {ref.displayName ?? ref.objectId}
-                  </span>
-                  {ref.displayName !== undefined && (
-                    <span className="text-xs text-muted-foreground">
-                      ({ref.objectId})
-                    </span>
-                  )}
-                </div>
+              v.candidateMembers.map((row, idx) => (
+                <p key={idx} className="text-sm text-foreground">
+                  {memberLabel(row, idx)}
+                </p>
               ))
             )}
           </CardContent>
