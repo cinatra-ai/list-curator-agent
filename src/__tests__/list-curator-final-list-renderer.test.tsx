@@ -20,6 +20,9 @@
  *     carrying decision "reject", so the run ends and creates no list. CRM
  *     records that discovery wrote before this review may already exist.
  *   - Approve is disabled when listName is empty.
+ *   - A value with no list of members reads "The members could not be read."
+ *     and Approve is disabled, while Cancel stays. An empty list reads
+ *     "No members." and Approve stays.
  *   - Failures section renders when failures.length > 0.
  */
 import { readFileSync } from "node:fs";
@@ -66,7 +69,7 @@ function renderField(overrides: { value?: unknown } = {}) {
       <ListCuratorFinalListRenderer
         fieldName="finalList"
         schema={{ "x-renderer": "@cinatra-ai/list-curator-agent:final-list-review" }}
-        value={overrides.value ?? BASE_VALUE}
+        value={"value" in overrides ? overrides.value : BASE_VALUE}
         onChange={onChange}
         context={MINIMAL_CONTEXT}
       />,
@@ -134,12 +137,14 @@ describe("ListCuratorFinalListRenderer", () => {
         { full_name: "Ann Lee" },
         { DisplayName: "Bea Ray" },
         { "company name": "Cedar Ltd" },
+        { "full-name": "Gil Ash" },
         { accountName: "Dune Inc", name: "Eve Moss" },
       ]),
     });
     expect(screen.getByText("Ann Lee")).toBeDefined();
     expect(screen.getByText("Bea Ray")).toBeDefined();
     expect(screen.getByText("Cedar Ltd")).toBeDefined();
+    expect(screen.getByText("Gil Ash")).toBeDefined();
     expect(screen.getByText("Eve Moss")).toBeDefined();
     expect(screen.queryByText("Dune Inc")).toBeNull();
   });
@@ -152,30 +157,80 @@ describe("ListCuratorFinalListRenderer", () => {
         { name: "   " },
         { name: '{"raw-json":1}' },
         { name: "[raw-list]" },
+        { name: "  {raw-spaced}" },
         null,
         "raw-string",
         3,
         ["raw-item"],
       ]),
     });
-    for (let n = 1; n <= 9; n += 1) {
+    for (let n = 1; n <= 10; n += 1) {
       expect(screen.getByText(`Member ${n}`)).toBeDefined();
     }
-    expect(screen.getByText("9 members")).toBeDefined();
+    expect(screen.getByText("10 members")).toBeDefined();
     expect(container.textContent).not.toMatch(/raw-|email|title|\{|\[/);
   });
 
-  it("reads one member and no members in their own words", () => {
+  it("keeps the first spelling of a key, so a later one does not replace a blank name", () => {
+    const { container } = renderField({ value: withMembers([{ name: "", Name: "Ann Lee" }]) });
+    expect(screen.getByText("Member 1")).toBeDefined();
+    expect(container.textContent).not.toMatch(/Ann Lee/);
+  });
+
+  it("reads one member in its own words", () => {
     renderField({ value: withMembers([{ name: "Ann Lee" }]) });
     expect(screen.getByText("1 member")).toBeDefined();
-    cleanup();
+  });
+
+  it('keeps "No members." and Approve for a real empty list', () => {
     renderField({ value: withMembers([]) });
     expect(screen.getByText("0 members")).toBeDefined();
     expect(screen.getByText("No members.")).toBeDefined();
-    cleanup();
-    renderField({ value: withMembers({ name: "not a list" }) });
-    expect(screen.getByText("0 members")).toBeDefined();
-    expect(screen.getByText("No members.")).toBeDefined();
+    expect(screen.queryByText("The members could not be read.")).toBeNull();
+    const approve = screen.getByRole("button", { name: /approve list/i }) as HTMLButtonElement;
+    expect(approve.disabled).toBe(false);
+  });
+
+  function expectUnreadable(onChange: ReturnType<typeof vi.fn>) {
+    expect(screen.getByText("The members could not be read.")).toBeDefined();
+    expect(screen.queryByText("No members.")).toBeNull();
+    expect(screen.queryByText(/\d+ members?$/)).toBeNull();
+    const approve = screen.getByRole("button", { name: /approve list/i }) as HTMLButtonElement;
+    expect(approve.disabled).toBe(true);
+    const cancel = screen.getByRole("button", { name: /cancel/i }) as HTMLButtonElement;
+    expect(cancel.disabled).toBe(false);
+    fireEvent.click(approve);
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.click(cancel);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][0]).toEqual({
+      approved: false,
+      userResponse: JSON.stringify({ decision: "reject" }),
+    });
+  }
+
+  it("blocks Approve but not Cancel when candidateMembers is missing or no list", () => {
+    const { candidateMembers: _omitted, ...withoutMembers } = BASE_VALUE;
+    for (const value of [
+      withoutMembers,
+      withMembers(null),
+      withMembers({ name: "not a list" }),
+      withMembers("not a list"),
+      withMembers(3),
+    ]) {
+      const { onChange } = renderField({ value });
+      expect(screen.getByDisplayValue("YC W24 Founders")).toBeDefined();
+      expectUnreadable(onChange);
+      cleanup();
+    }
+  });
+
+  it("blocks Approve but not Cancel when the value is null, a list or a string", () => {
+    for (const value of [null, [], [{ name: "Ann Lee" }], "not a value"]) {
+      const { onChange } = renderField({ value });
+      expectUnreadable(onChange);
+      cleanup();
+    }
   });
 
   it("reads no value that the run does not give this review", () => {

@@ -39,8 +39,9 @@ type FailureItem = {
 type FinalListValue = {
   listName: string;
   // The rows that create receives. Their members are set by the schema the
-  // person approved for this run, so a row can hold anything.
-  candidateMembers: unknown[];
+  // person approved for this run, so a row can hold anything. null when the
+  // value holds no list of them: that is not the same as a list with no rows.
+  candidateMembers: unknown[] | null;
   failures: FailureItem[];
 };
 
@@ -54,13 +55,13 @@ function toFinalListValue(value: unknown): FinalListValue {
       : [];
     return {
       listName: typeof v.listName === "string" ? v.listName : "",
-      candidateMembers: Array.isArray(v.candidateMembers) ? v.candidateMembers : [],
+      candidateMembers: Array.isArray(v.candidateMembers) ? v.candidateMembers : null,
       failures,
     };
   }
   return {
     listName: "",
-    candidateMembers: [],
+    candidateMembers: null,
     failures: [],
   };
 }
@@ -116,7 +117,9 @@ export function ListCuratorFinalListRenderer({
     onChangeRef.current = onChange;
   });
 
-  const approveDisabled = disabled === true || listName.trim() === "";
+  // A person cannot approve a list that this screen could not read.
+  const approveDisabled =
+    disabled === true || listName.trim() === "" || v.candidateMembers === null;
 
   // The run reads its next step from the answer this screen sends (issue 65):
   // the host forwards a renderer-authored `userResponse` to the paused review as
@@ -157,21 +160,25 @@ export function ListCuratorFinalListRenderer({
           />
         </div>
 
-        <Card className="border-line bg-surface-muted backdrop-blur-none">
-          <CardContent className="flex flex-wrap gap-2 py-3">
-            <Badge variant="secondary">
-              {v.candidateMembers.length}{" "}
-              {v.candidateMembers.length === 1 ? "member" : "members"}
-            </Badge>
-          </CardContent>
-        </Card>
+        {v.candidateMembers !== null && (
+          <Card className="border-line bg-surface-muted backdrop-blur-none">
+            <CardContent className="flex flex-wrap gap-2 py-3">
+              <Badge variant="secondary">
+                {v.candidateMembers.length}{" "}
+                {v.candidateMembers.length === 1 ? "member" : "members"}
+              </Badge>
+            </CardContent>
+          </Card>
+        )}
 
         <Card className="border-line bg-surface backdrop-blur-none">
           <CardHeader>
             <CardTitle className="text-base">Members</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
-            {v.candidateMembers.length === 0 ? (
+            {v.candidateMembers === null ? (
+              <p className="text-sm text-destructive">The members could not be read.</p>
+            ) : v.candidateMembers.length === 0 ? (
               <p className="text-sm text-muted-foreground">No members.</p>
             ) : (
               v.candidateMembers.map((row, idx) => (
