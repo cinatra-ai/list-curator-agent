@@ -94,8 +94,15 @@ function routed(branch, decision) {
 }
 
 const GATES = [
-  { name: "schema review", suffix: ":scrape-schema-review", guarded: "collect", proposer: "propose" },
-  { name: "list review", suffix: ":final-list-review", guarded: "create", proposer: "collect" },
+  {
+    name: "schema review",
+    suffix: ":scrape-schema-review",
+    guarded: "collect",
+    proposer: "propose",
+    shown: ["seedUrls", "outputSchema"],
+    values: ["seedUrls", "outputSchema", "instructions"],
+  },
+  { name: "list review", suffix: ":final-list-review", guarded: "create", proposer: "collect", shown: ["listName"], values: ["listName"] },
 ];
 
 for (const gate of GATES) {
@@ -182,11 +189,13 @@ for (const gate of GATES) {
 describe("the decision step reads the parsed answer", () => {
   // What each answer does to the run is driven step by step in
   // gate-answers-drive-the-run.test.mjs; these cases name where it is read.
-  it("hands the whole answer to the parse step as one JSON string without a code fence", () => {
+  it("hands the whole answer and the values shown to the parse step as JSON without a code fence", () => {
+    const written = (name) => `{{ ${name} | tojson | replace('\`', '\\\\u0060') }}`;
     for (const gate of GATES) {
       const { wrap } = branchOf(review(gate.suffix).id);
-      expect(wrap.inputs.map((i) => i.title)).toEqual(["answer"]);
-      expect(wrap.template).toBe(`{"answer": {{ answer | tojson | replace('\`', '\\\\u0060') }} }`);
+      expect(wrap.inputs.map((i) => i.title)).toEqual(["answer", ...gate.shown]);
+      const shown = gate.shown.map((name) => `"${name}": ${written(name)}`).join(", ");
+      expect(wrap.template).toBe(`{"answer": ${written("answer")}, "shown": {${shown} } }`);
     }
   });
 
@@ -195,8 +204,8 @@ describe("the decision step reads the parsed answer", () => {
       const { parser, reader } = branchOf(review(gate.suffix).id);
       expect(reader.component_type).toBe("PluginTemplateNode");
       expect(reader.inputs.map((i) => [i.title, i.default])).toEqual([["verdict", ""]]);
-      expect(Object.keys(parser.output_values)).toEqual(["verdict"]);
-      expect(parser.outputs.map((o) => [o.title, o.default])).toEqual([["verdict", ""]]);
+      expect(Object.keys(parser.output_values)).toEqual(["verdict", ...gate.values]);
+      expect(parser.outputs[0]).toEqual({ title: "verdict", type: "string", default: "" });
       expect(data.filter((e) => e.destination_node.$component_ref === parser.id).map((e) => e.destination_input)).toEqual(["text"]);
       expect(data.filter((e) => e.destination_node.$component_ref === reader.id).map((e) => e.source_node.$component_ref)).toEqual([parser.id]);
     }
@@ -220,9 +229,5 @@ describe("the list review says what the flow keeps", () => {
 
   it("no longer promises that nothing is written before the approval", () => {
     expect(node.metadata.cinatra.description).not.toMatch(/Nothing is written to the CRM before you approve/);
-  });
-
-  it("declares the list name read-only in the review's input schema", () => {
-    expect(node.metadata.cinatra.inputMessageSchema.properties.listName.readOnly).toBe(true);
   });
 });
