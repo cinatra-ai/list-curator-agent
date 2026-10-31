@@ -34,6 +34,11 @@ import type { FieldRendererProps } from "@cinatra-ai/sdk-ui/field-renderer-props
 // ---------------------------------------------------------------------------
 
 type ScrapeSchemaValue = {
+  // Whether the value holds the proposal. The gate's message always writes the
+  // keys outputSchema and plan, null when empty. A value without them is the
+  // run's start inputs alone: the message was lost or could not be read, and
+  // those inputs are not a proposal that a person can approve.
+  readable: boolean;
   instructions: string;
   outputSchema: Record<string, unknown>;
   seedUrls: string[];
@@ -42,10 +47,14 @@ type ScrapeSchemaValue = {
 function toScrapeSchemaValue(value: unknown): ScrapeSchemaValue {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     const v = value as Record<string, unknown>;
+    // A missing key reads undefined and fails this. A null schema passes it.
+    const schemaForm =
+      typeof v.outputSchema === "object" && !Array.isArray(v.outputSchema);
     const seedUrls = Array.isArray(v.seedUrls)
       ? (v.seedUrls.filter((u) => typeof u === "string") as string[])
       : [];
     return {
+      readable: "plan" in v && schemaForm,
       instructions: typeof v.instructions === "string" ? v.instructions : "",
       outputSchema:
         v.outputSchema && typeof v.outputSchema === "object"
@@ -55,6 +64,7 @@ function toScrapeSchemaValue(value: unknown): ScrapeSchemaValue {
     };
   }
   return {
+    readable: false,
     instructions: "",
     outputSchema: { type: "object", properties: {} },
     seedUrls: [],
@@ -98,6 +108,7 @@ export function ListCuratorScrapeSchemaRenderer({
 
   const approveDisabled =
     disabled === true ||
+    !initial.readable ||
     schemaError !== null ||
     seedUrls.filter((u) => u.trim() !== "").length === 0;
 
@@ -155,78 +166,84 @@ export function ListCuratorScrapeSchemaRenderer({
         <CardTitle>Review scrape schema</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="list-curator-instructions">Instructions</Label>
-          <Textarea
-            id="list-curator-instructions"
-            value={instructions}
-            onChange={(e) => setInstructions(e.target.value)}
-            rows={4}
-            disabled={disabled === true}
-            placeholder="Per-row extraction instructions for the scrape child."
-          />
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="list-curator-schema">Output schema (JSON Schema)</Label>
-          <Textarea
-            id="list-curator-schema"
-            value={outputSchemaText}
-            onChange={(e) => setOutputSchemaText(e.target.value)}
-            rows={8}
-            spellCheck={false}
-            disabled={disabled === true}
-            className="font-mono text-sm"
-          />
-          {schemaError !== null && (
-            <p className="text-sm text-destructive">{schemaError}</p>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <Label>Seed URLs</Label>
-          {seedUrls.length === 0 && (
-            <p className="text-sm text-muted-foreground">
-              No seed URLs. Add at least one to enable Approve.
-            </p>
-          )}
-          {seedUrls.map((url, idx) => (
-            <div key={idx} className="flex items-center gap-2">
-              <Badge variant="outline">#{idx + 1}</Badge>
-              <InputGroup className="flex-1">
-                <InputGroupAddon>
-                  <LinkIcon aria-hidden="true" />
-                </InputGroupAddon>
-                <InputGroupInput
-                  type="url"
-                  value={url}
-                  onChange={(e) => handleEditUrl(idx, e.target.value)}
-                  placeholder="https://example.com/path"
-                  disabled={disabled === true}
-                />
-              </InputGroup>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleRemoveUrl(idx)}
+        {initial.readable ? (
+          <>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="list-curator-instructions">Instructions</Label>
+              <Textarea
+                id="list-curator-instructions"
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
+                rows={4}
                 disabled={disabled === true}
-                aria-label={`Remove URL ${idx + 1}`}
-              >
-                Remove
-              </Button>
+                placeholder="Per-row extraction instructions for the scrape child."
+              />
             </div>
-          ))}
-          <div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleAddUrl}
-              disabled={disabled === true}
-            >
-              Add URL
-            </Button>
-          </div>
-        </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="list-curator-schema">Output schema (JSON Schema)</Label>
+              <Textarea
+                id="list-curator-schema"
+                value={outputSchemaText}
+                onChange={(e) => setOutputSchemaText(e.target.value)}
+                rows={8}
+                spellCheck={false}
+                disabled={disabled === true}
+                className="font-mono text-sm"
+              />
+              {schemaError !== null && (
+                <p className="text-sm text-destructive">{schemaError}</p>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label>Seed URLs</Label>
+              {seedUrls.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No seed URLs. Add at least one to enable Approve.
+                </p>
+              )}
+              {seedUrls.map((url, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <Badge variant="outline">#{idx + 1}</Badge>
+                  <InputGroup className="flex-1">
+                    <InputGroupAddon>
+                      <LinkIcon aria-hidden="true" />
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      type="url"
+                      value={url}
+                      onChange={(e) => handleEditUrl(idx, e.target.value)}
+                      placeholder="https://example.com/path"
+                      disabled={disabled === true}
+                    />
+                  </InputGroup>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemoveUrl(idx)}
+                    disabled={disabled === true}
+                    aria-label={`Remove URL ${idx + 1}`}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ))}
+              <div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddUrl}
+                  disabled={disabled === true}
+                >
+                  Add URL
+                </Button>
+              </div>
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-destructive">The proposal could not be read.</p>
+        )}
       </CardContent>
       <CardFooter className="flex justify-end gap-2">
         <Button
