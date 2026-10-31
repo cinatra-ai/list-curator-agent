@@ -772,14 +772,15 @@ const VALUES = {
       twin: (g, shown) => (Array.isArray(g?.seedUrls) && g.seedUrls.length > 0 && g.seedUrls.every(isNonBlank) ? g.seedUrls : shown?.seedUrls),
     },
     outputSchema: {
-      program: valueProgram("outputSchema", "", 'type == "object" and ($g.type != "scrape-schema" or . != {"type": "object", "properties": {}})', ".shown.outputSchema"),
+      program: valueProgram("outputSchema", "", 'type == "object" and (($g | keys_unsorted) != ["type", "instructions", "outputSchema", "seedUrls", "snapshotAt"] or $g.type != "scrape-schema" or . != {"type": "object", "properties": {}})', ".shown.outputSchema"),
       default: {},
       twin: (g, shown) => {
         const v = g?.outputSchema;
         if (!isObject(v)) return shown?.outputSchema;
         const placeholder =
           sameList(Object.keys(v).sort(), ["properties", "type"]) && v.type === "object" && isObject(v.properties) && Object.keys(v.properties).length === 0;
-        return g.type === "scrape-schema" && placeholder ? shown?.outputSchema : v;
+        const snapshot = sameList(Object.keys(g), SNAPSHOTS.schema_decision_parse.keys) && g.type === SNAPSHOTS.schema_decision_parse.type;
+        return snapshot && placeholder ? shown?.outputSchema : v;
       },
     },
     instructions: {
