@@ -11,7 +11,7 @@
  *     flow's list_gate inputs give (candidateMembers), and the Approve list +
  *     Cancel buttons (issue 72).
  *   - A member's label is a name-like string field of its row, else
- *     "Member N". The screen never draws a row's raw keys or JSON.
+ *     "Member N". The screen draws no key of a row and no object or list as JSON.
  *   - Approve emits onChange({approved: true, listName, userResponse}), the
  *     userResponse carrying decision "approve" (issue 65: the run reads the
  *     decision from the answer the host sends, and a renderer-authored
@@ -138,6 +138,11 @@ describe("ListCuratorFinalListRenderer", () => {
         { DisplayName: "Bea Ray" },
         { "company name": "Cedar Ltd" },
         { "full-name": "Gil Ash" },
+        { contactName: "Hal Finn" },
+        { organizationName: "Ivy Group" },
+        { organisation_name: "Jade Works" },
+        { personName: "Kim Dale" },
+        { memberName: "Lee Pond" },
         { accountName: "Dune Inc", name: "Eve Moss" },
       ]),
     });
@@ -145,6 +150,9 @@ describe("ListCuratorFinalListRenderer", () => {
     expect(screen.getByText("Bea Ray")).toBeDefined();
     expect(screen.getByText("Cedar Ltd")).toBeDefined();
     expect(screen.getByText("Gil Ash")).toBeDefined();
+    for (const name of ["Hal Finn", "Ivy Group", "Jade Works", "Kim Dale", "Lee Pond"]) {
+      expect(screen.getByText(name)).toBeDefined();
+    }
     expect(screen.getByText("Eve Moss")).toBeDefined();
     expect(screen.queryByText("Dune Inc")).toBeNull();
   });
@@ -226,7 +234,7 @@ describe("ListCuratorFinalListRenderer", () => {
   });
 
   it("blocks Approve but not Cancel when the value is null, a list or a string", () => {
-    for (const value of [null, [], [{ name: "Ann Lee" }], "not a value"]) {
+    for (const value of [null, undefined, [], [{ name: "Ann Lee" }], "not a value", 3, true]) {
       const { onChange } = renderField({ value });
       expectUnreadable(onChange);
       cleanup();

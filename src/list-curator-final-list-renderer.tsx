@@ -82,7 +82,11 @@ const NAME_KEYS = [
   "membername",
 ];
 
-/** The label of a row: a name-like string field, else "Member N". Never a raw key or JSON. */
+/**
+ * The label of a row: a name-like string field, else "Member N". It draws no key
+ * of the row and no object or list as JSON. A name is drawn as its own text, so a
+ * name of "42" or "null" reads that way.
+ */
 function memberLabel(row: unknown, index: number): string {
   const fallback = `Member ${index + 1}`;
   if (!row || typeof row !== "object" || Array.isArray(row)) return fallback;
