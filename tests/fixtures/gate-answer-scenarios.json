@@ -2243,6 +2243,115 @@
     ]
   },
   {
+    "name": "edits: the host's snapshot with the default schema and edited seed URLs runs with the schema shown",
+    "answers": [
+      "{\"type\":\"scrape-schema\",\"instructions\":\"\",\"outputSchema\":{\"type\":\"object\",\"properties\":{}},\"seedUrls\":[\"https://example.test/edited-1\"],\"snapshotAt\":\"2026-01-01T00:00:00.000Z\"}",
+      "{\"decision\":\"approve\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/edited-1"
+          ],
+          "outputSchema": {
+            "type": "object"
+          },
+          "instructions": ""
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: an object schema with no properties outside a snapshot reaches collect",
+    "answers": [
+      "{\"decision\":\"approve\",\"outputSchema\":{\"type\":\"object\",\"properties\":{}}}",
+      "{\"decision\":\"approve\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/a"
+          ],
+          "outputSchema": {
+            "type": "object",
+            "properties": {}
+          },
+          "instructions": ""
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "edits: a schema that is a number runs with the schema shown",
+    "answers": [
+      "{\"decision\":\"approve\",\"outputSchema\":7}",
+      "{\"decision\":\"approve\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/a"
+          ],
+          "outputSchema": {
+            "type": "object"
+          },
+          "instructions": ""
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
     "name": "edits: an attachment that names values is not an edit",
     "answers": [
       "{\"text\":\"{\\\"decision\\\":\\\"approve\\\"}\",\"attachments\":[{\"seedUrls\":[\"https://example.test/edited-1\",\"https://example.test/edited-2\"],\"listName\":\"Renamed\"}]}",
