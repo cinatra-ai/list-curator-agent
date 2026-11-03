@@ -1223,6 +1223,7 @@
           "renderer": "@cinatra-ai/list-curator-agent:scrape-schema-review",
           "a2uiSurfaceId": "list-curator:schema-review:input",
           "autoSkipWhenInputsPresent": false,
+          "surfaceGateInputs": true,
           "description": "Review the seeds and the scrape schema this curation will use, then approve, send them back for revision, or reject the run.",
           "inputMessageSchema": {
             "type": "object",
@@ -1620,6 +1621,7 @@
           "renderer": "@cinatra-ai/list-curator-agent:final-list-review",
           "a2uiSurfaceId": "list-curator:final-list-review:input",
           "autoSkipWhenInputsPresent": false,
+          "surfaceGateInputs": true,
           "description": "This is the list that will be created and these are the members the run will try to add to it. The list is created in the CRM only after you approve it here. Adding a member can fail when create runs, after this review; such a member is not on the list. Here failures holds what collect reports: one entry per row that could not be collected or added (create has not run yet). A reject ends the run and no list is created; CRM records that discovery already created stay.",
           "inputMessageSchema": {
             "type": "object",

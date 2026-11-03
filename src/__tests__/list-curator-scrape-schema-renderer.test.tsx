@@ -16,6 +16,9 @@
  *   - Invalid JSON in the outputSchema textarea disables Approve and shows
  *     an inline error message.
  *   - Empty seedUrls disables Approve.
+ *   - A value without the keys that the gate's message writes reads "The
+ *     proposal could not be read.", with no fields and Approve disabled, while
+ *     Reject stays. A proposal with empty values stays readable.
  */
 import React from "react";
 import { describe, it, expect, afterEach, vi } from "vitest";
@@ -33,6 +36,7 @@ const BASE_VALUE = {
     properties: { companyName: { type: "string" } },
   },
   seedUrls: ["https://www.ycombinator.com/companies?batch=W24"],
+  plan: "Read the batch page",
 };
 
 function renderField(overrides: { value?: unknown } = {}) {
@@ -43,7 +47,7 @@ function renderField(overrides: { value?: unknown } = {}) {
       <ListCuratorScrapeSchemaRenderer
         fieldName="scrapeSchema"
         schema={{ "x-renderer": "@cinatra-ai/list-curator-agent:scrape-schema-review" }}
-        value={overrides.value ?? BASE_VALUE}
+        value={"value" in overrides ? overrides.value : BASE_VALUE}
         onChange={onChange}
         context={MINIMAL_CONTEXT}
       />,
@@ -114,6 +118,66 @@ describe("ListCuratorScrapeSchemaRenderer", () => {
     }) as HTMLButtonElement;
     expect(approveBtn.disabled).toBe(true);
     expect(screen.getByText(/invalid json/i)).toBeDefined();
+  });
+
+  function expectUnreadable(onChange: ReturnType<typeof vi.fn>) {
+    expect(screen.getByText("The proposal could not be read.")).toBeDefined();
+    expect(screen.queryByLabelText(/output schema/i)).toBeNull();
+    expect(screen.queryByLabelText(/instructions/i)).toBeNull();
+    expect(screen.queryByRole("button", { name: /add url/i })).toBeNull();
+    const approve = screen.getByRole("button", { name: /approve/i }) as HTMLButtonElement;
+    expect(approve.disabled).toBe(true);
+    const reject = screen.getByRole("button", { name: /reject/i }) as HTMLButtonElement;
+    expect(reject.disabled).toBe(false);
+    fireEvent.click(approve);
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.click(reject);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][0]).toEqual({
+      approved: false,
+      userResponse: JSON.stringify({ decision: "reject" }),
+    });
+  }
+
+  it("blocks Approve but not Reject when the value has no outputSchema key or no plan key", () => {
+    const { outputSchema: _schema, ...noSchema } = BASE_VALUE;
+    const { plan: _plan, ...noPlan } = BASE_VALUE;
+    const startInputsAlone = { intent: "find CTOs", seedUrls: ["https://start.test/s"], listName: "CTOs" };
+    for (const value of [noSchema, noPlan, startInputsAlone]) {
+      const { onChange } = renderField({ value });
+      expectUnreadable(onChange);
+      cleanup();
+    }
+  });
+
+  it("blocks Approve but not Reject when the value is no object", () => {
+    for (const value of [null, undefined, [], "not a value", 3, true]) {
+      const { onChange } = renderField({ value });
+      expectUnreadable(onChange);
+      cleanup();
+    }
+  });
+
+  it("blocks Approve but not Reject when the schema has another form", () => {
+    for (const outputSchema of ["not a schema", 3, true, []]) {
+      const { onChange } = renderField({ value: { ...BASE_VALUE, outputSchema } });
+      expectUnreadable(onChange);
+      cleanup();
+    }
+  });
+
+  it("keeps a proposal with empty values readable, with the default schema and no seeds", () => {
+    renderField({ value: { outputSchema: null, seedUrls: null, plan: null } });
+    expect(screen.queryByText("The proposal could not be read.")).toBeNull();
+    const schema = screen.getByLabelText(/output schema/i) as HTMLTextAreaElement;
+    expect(JSON.parse(schema.value)).toEqual({ type: "object", properties: {} });
+    expect(screen.getByText(/No seed URLs/)).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: /add url/i }));
+    fireEvent.change(screen.getByPlaceholderText("https://example.com/path"), {
+      target: { value: "https://added.test/a" },
+    });
+    const approve = screen.getByRole("button", { name: /approve/i }) as HTMLButtonElement;
+    expect(approve.disabled).toBe(false);
   });
 
   it("Approve button is disabled when seedUrls is empty", () => {
