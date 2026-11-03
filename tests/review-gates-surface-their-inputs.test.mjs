@@ -50,11 +50,9 @@ describe("the review gates hand their inputs to the screen", () => {
   });
 
   it("the scrape gate takes plan from propose, the key by which its screen tells a proposal", () => {
-    // The screen treats a value without `plan` as unreadable. The loader
-    // writes a key for each input that the gate declares, `null` when it has
-    // no value. So without the `plan` input the gate's message would not write
-    // `plan`, and every real proposal would read as unreadable. The edge gives
-    // the key the value of `propose`.
+    // This test checks that `propose` declares the output `plan`, that
+    // `schema_gate` declares the input `plan`, and that edges from `propose`
+    // feed the gate's inputs `outputSchema`, `seedUrls` and `plan`.
     expect(refs.propose.outputs.map((output) => output.title)).toContain("plan");
     expect(titles(refs.schema_gate)).toContain("plan");
     for (const key of ["outputSchema", "seedUrls", "plan"]) {
