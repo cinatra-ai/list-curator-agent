@@ -21,6 +21,10 @@ const oas = JSON.parse(readFileSync(path.join(packageRoot, "cinatra", "oas.json"
 const refs = oas.$referenced_components;
 const gates = Object.values(refs).filter((node) => node.component_type === "InputMessageNode");
 const titles = (node) => node.inputs.map((input) => input.title);
+const ref = (node) => node?.$component_ref ?? node?.id;
+const edges = oas.data_flow_connections.map((edge) =>
+  [ref(edge.source_node), edge.source_output, ref(edge.destination_node), edge.destination_input].join(" "),
+);
 
 describe("the review gates hand their inputs to the screen", () => {
   it("every review gate sets surfaceGateInputs, so that its values reach the screen", () => {
@@ -43,6 +47,17 @@ describe("the review gates hand their inputs to the screen", () => {
     expect(titles(refs.list_gate)).toEqual(
       expect.arrayContaining(["candidateMembers", "listName", "failures"]),
     );
+  });
+
+  it("the scrape gate takes plan from propose, the key by which its screen tells a proposal", () => {
+    // The screen treats a value without `plan` as unreadable. Without this
+    // input and edge the gate's message would not write `plan`, and every
+    // real proposal would read as unreadable.
+    expect(refs.propose.outputs.map((output) => output.title)).toContain("plan");
+    expect(titles(refs.schema_gate)).toContain("plan");
+    for (const key of ["outputSchema", "seedUrls", "plan"]) {
+      expect(edges).toContain(`propose ${key} schema_gate ${key}`);
+    }
   });
 
   it("the start inputs declare no key of a review gate, except the two that its message replaces", () => {
