@@ -10,7 +10,7 @@
     "cinatra"
   ],
   "scripts": {
-    "test": "vitest run"
+    "test": "sh -c \"vitest run\""
   },
   "devDependencies": {
     "vitest": "^4.1.6"
