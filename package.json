@@ -96,7 +96,6 @@
               "emptyText": "No seed URLs. Add at least one to enable Approve."
             }
           ],
-          "decisionsLabel": "Decision",
           "decisions": [
             {
               "label": "Approve",
@@ -200,7 +199,6 @@
               ]
             }
           ],
-          "decisionsLabel": "Decision",
           "decisions": [
             {
               "label": "Approve list",
