@@ -16,18 +16,12 @@
 //   3. the copies — delete `src/components/ui/<item>.tsx` for every primitive
 //      in the frozen list.
 //
-// This package's two field renderers are source-COMPILED by the host (the
-// BUILD-TIME road of the contract's "Two roads" section: the host's own
-// tsconfig maps `@cinatra-ai/list-curator-agent/src/list-curator-*-renderer`
-// onto the files in its extensions tree and `@cinatra-ai/design-primitives`
-// onto `src/lib/artifacts/host-shared-primitives.ts`), so the import line is
-// the whole package-side change: there is no client renderer bundle here and
-// therefore no preamble field and no contract-version field to declare.
+// Until cinatra-ai/cinatra#3470 the package's two field renderers took their
+// primitives from the host this way. They are gone: the two review screens are
+// declared in package.json and the product draws them. What stays pinned is that
+// the package carries no copy and no import of a product primitive.
 //
-// A regression here is silent in this repo's own CI — a standalone extension
-// mirror classifies first_party=1 and skips install, typecheck and test — which
-// is exactly why the copy and the copy-shaped import are pinned as SOURCE facts
-// rather than left to a type error in the monorepo.
+// Pinned as SOURCE facts, rather than left to a type error in the monorepo.
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import * as path from "node:path";
@@ -43,8 +37,8 @@ const PACKAGE_NAME = "@cinatra-ai/list-curator-agent";
  * host root would walk up from there, meet the HOST's package.json first and
  * never reach this package at all, so the suite would throw during collection
  * instead of proving anything. `process.cwd()` stays as the fallback for an
- * environment where `import.meta.url` is not a file URL (the jsdom environment
- * the renderer suites declare; this suite declares none). The manifest's own
+ * environment where `import.meta.url` is not a file URL (a DOM test
+ * environment, which this suite does not declare). The manifest's own
  * name is what ends the walk either way.
  */
 function packageRoot(): string {
@@ -73,9 +67,6 @@ const SRC = path.join(REPO_ROOT, "src");
 /** The host-neutral module id the contract fixes (`HOST_DESIGN_PRIMITIVES_MODULE`). */
 const SHARED_MODULE = "@cinatra-ai/design-primitives";
 
-/** Where the ambient declaration of the virtual id is allowed to live. */
-const DECLARATION = "src/__tests__/fixtures/design-primitives.d.ts";
-
 /** Every `.ts`/`.tsx` file under src/, optionally excluding this package's tests. */
 function walk(dir: string, skipTests: boolean): string[] {
   const out: string[] = [];
@@ -93,19 +84,6 @@ function walk(dir: string, skipTests: boolean): string[] {
 }
 
 const relative = (file: string) => path.relative(REPO_ROOT, file);
-
-/** The names one bare-id import statement of a renderer brings in. */
-function sharedImportNames(renderer: string): string[] {
-  const text = readFileSync(path.join(REPO_ROOT, renderer), "utf8");
-  const statements = [
-    ...text.matchAll(/import\s+\{([^}]*)\}\s+from\s+["']@cinatra-ai\/design-primitives["']/g),
-  ];
-  expect(statements).toHaveLength(1);
-  return statements[0][1]
-    .split(",")
-    .map((name) => name.trim())
-    .filter(Boolean);
-}
 
 describe("host-shared design primitives (cinatra#3471 slice 3)", () => {
   it("keeps no byte copy of a product primitive under src/components/ui/", () => {
@@ -152,37 +130,6 @@ describe("host-shared design primitives (cinatra#3471 slice 3)", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("takes the scrape-schema renderer's primitives from the host-shared module", () => {
-    expect(sharedImportNames("src/list-curator-scrape-schema-renderer.tsx")).toEqual([
-      "Badge",
-      "Button",
-      "Card",
-      "CardContent",
-      "CardFooter",
-      "CardHeader",
-      "CardTitle",
-      "InputGroup",
-      "InputGroupAddon",
-      "InputGroupInput",
-      "Label",
-      "Textarea",
-    ]);
-  });
-
-  it("takes the final-list renderer's primitives from the host-shared module", () => {
-    expect(sharedImportNames("src/list-curator-final-list-renderer.tsx")).toEqual([
-      "Badge",
-      "Button",
-      "Card",
-      "CardContent",
-      "CardFooter",
-      "CardHeader",
-      "CardTitle",
-      "Input",
-      "Label",
-    ]);
-  });
-
   it("declares the virtual module id neither as a dependency nor as a peer", () => {
     const manifest = JSON.parse(
       readFileSync(path.join(REPO_ROOT, "package.json"), "utf8"),
@@ -199,20 +146,15 @@ describe("host-shared design primitives (cinatra#3471 slice 3)", () => {
     expect(declared).toEqual([]);
   });
 
-  it("declares the virtual id at the one path the host's tsconfig excludes, and nowhere else", () => {
-    // An ambient `declare module` beats a tsconfig `paths` mapping for every
-    // file of the program that reads it, so inside the host it must never be
-    // part of the program: the host maps the same id onto its REAL module and
-    // serves the whole frozen export list, while this package declares only the
-    // thirteen names its renderers use — the host build would fail TS2305 on
-    // every other name. cinatra main's tsconfig includes `**/*.ts` and excludes
-    // `**/__tests__/fixtures/**`, and this extension tree is materialised at
-    // `extensions/cinatra-ai/list-curator-agent/`, so the declaration is safe
-    // under `src/__tests__/fixtures/` and nowhere else under src/. This pins the
-    // placement instead of leaving it to a file comment.
+  it("declares the virtual id nowhere: the package ships no module that draws", () => {
+    // Before cinatra-ai/cinatra#3470 the two field renderers imported the host's
+    // primitives, and an ambient declaration of the virtual id lived at the one
+    // path the host's tsconfig excludes. The package now declares its review
+    // screens and the product draws them, so no source file imports the id and
+    // no file declares it.
     const declaring = walk(SRC, false)
       .filter((file) => readFileSync(file, "utf8").includes(`declare module "${SHARED_MODULE}"`))
       .map(relative);
-    expect(declaring).toEqual([DECLARATION]);
+    expect(declaring).toEqual([]);
   });
 });

@@ -3122,5 +3122,128 @@
         }
       }
     ]
+  },
+  {
+    "name": "declared screens: both staged Approves reach collect and create with their edits",
+    "answers": [
+      "{\"decision\":\"approve\",\"approved\":true,\"instructions\":\"Read the team page only.\",\"outputSchema\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"}}},\"seedUrls\":[\"https://example.test/edited-1\",\"https://example.test/edited-2\"]}",
+      "{\"decision\":\"approve\",\"approved\":true,\"listName\":\"Renamed\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/edited-1",
+            "https://example.test/edited-2"
+          ],
+          "outputSchema": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "instructions": "Read the team page only."
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "Renamed"
+        }
+      }
+    ]
+  },
+  {
+    "name": "declared screens: both staged Approves with the values shown run with them",
+    "answers": [
+      "{\"decision\":\"approve\",\"approved\":true,\"instructions\":\"\",\"outputSchema\":{\"type\":\"object\"},\"seedUrls\":[\"https://example.test/a\"]}",
+      "{\"decision\":\"approve\",\"approved\":true,\"listName\":\"CTOs\"}"
+    ],
+    "runs": [
+      "propose",
+      "collect",
+      "create"
+    ],
+    "ends": "curation_summary",
+    "message": "1 members were added to the list. s",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/a"
+          ],
+          "outputSchema": {
+            "type": "object"
+          },
+          "instructions": ""
+        }
+      },
+      {
+        "step": "create",
+        "call": 0,
+        "inputs": {
+          "listName": "CTOs"
+        }
+      }
+    ]
+  },
+  {
+    "name": "declared screens: the staged Reject at the scrape-plan review collects nothing",
+    "answers": [
+      "{\"decision\":\"reject\",\"approved\":false}"
+    ],
+    "runs": [
+      "propose"
+    ],
+    "ends": "schema_declined",
+    "message": "You declined the scrape plan, so the run stopped before collecting any member and before creating a list."
+  },
+  {
+    "name": "declared screens: the staged Cancel at the list review creates nothing",
+    "answers": [
+      "{\"decision\":\"approve\",\"approved\":true,\"instructions\":\"Read the team page only.\",\"outputSchema\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"}}},\"seedUrls\":[\"https://example.test/edited-1\",\"https://example.test/edited-2\"]}",
+      "{\"decision\":\"reject\",\"approved\":false}"
+    ],
+    "runs": [
+      "propose",
+      "collect"
+    ],
+    "ends": "list_declined",
+    "message": "You declined the list, so no CRM list was created and no member was added to one.",
+    "receives": [
+      {
+        "step": "collect",
+        "call": 0,
+        "inputs": {
+          "seedUrls": [
+            "https://example.test/edited-1",
+            "https://example.test/edited-2"
+          ],
+          "outputSchema": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            }
+          },
+          "instructions": "Read the team page only."
+        }
+      }
+    ]
   }
 ]

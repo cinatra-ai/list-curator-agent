@@ -5,7 +5,6 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "jsx": "react-jsx",
     "strict": true,
     "noImplicitAny": false,
     "isolatedModules": true,
@@ -21,6 +20,6 @@
     "noEmit": false,
     "verbatimModuleSyntax": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }
