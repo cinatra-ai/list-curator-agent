@@ -24,11 +24,17 @@
  * - the install step does not freeze a lockfile, and the repository ignores
  *   the lockfile a standalone install writes, so a devDependency needs no
  *   lockfile change;
- * - the build job runs the package's test script.
+ * - the build job runs the package's test script, and the flag it passes
+ *   (`pnpm test --if-present`) does not reach vitest: pnpm 12 appends the
+ *   arguments it forwards to the script's own command line, so a script of
+ *   `vitest run` runs `vitest run --if-present`, which vitest rejects with
+ *   "Unknown option". A script of the form `sh -c "vitest run"` takes the
+ *   appended flag as the shell's $0 and drops it.
  */
 import { describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -81,6 +87,26 @@ describe("a standalone build can run the package's tests", () => {
     expect(lines.some((line) => line.includes("pnpm install --no-frozen-lockfile"))).toBe(true);
     expect(lines.some((line) => /(?<!no-)--frozen-lockfile/.test(line))).toBe(false);
     expect(gitignore.split("\n").map((line) => line.trim())).toContain("pnpm-lock.yaml");
+  });
+
+  it("does not hand the --if-present flag that pnpm appends to the test script to vitest, which rejects it", () => {
+    const script = manifest.scripts?.test ?? "";
+    const dir = mkdtempSync(path.join(tmpdir(), "stub-vitest-"));
+    try {
+      // A stand-in vitest that prints its arguments, one per line.
+      const stub = path.join(dir, "vitest");
+      writeFileSync(stub, '#!/bin/sh\nfor a in "$@"; do printf "%s\\n" "$a"; done\n');
+      chmodSync(stub, 0o755);
+      // The script as pnpm runs it when the build job passes --if-present: the flag is appended to the command line.
+      const out = execFileSync("sh", ["-c", `${script} --if-present`], {
+        env: { ...process.env, PATH: `${dir}${path.delimiter}${process.env.PATH}` },
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      expect(out.split("\n").filter(Boolean), "vitest is started as `vitest run` and gets no --if-present").toEqual(["run"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("runs the package's test script in the build job", () => {
