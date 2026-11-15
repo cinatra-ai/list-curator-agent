@@ -72,6 +72,7 @@ const SCRAPE_SCHEMA_SCREEN = {
       placeholder: "https://example.com/path",
       addLabel: "Add URL",
       removeLabel: "Remove",
+      removeAriaLabel: "Remove URL",
       emptyText: "No seed URLs. Add at least one to enable Approve.",
     },
   ],
@@ -203,6 +204,15 @@ describe("the two review bindings declare their screens", () => {
       expect(binding.component).toBeUndefined();
       expect(binding.screen).toEqual(review.screen);
     });
+
+    if (review.kind === "scrape-schema-review") {
+      it("the Remove of a seed URL shows Remove and is named Remove URL with its number for assistive technology", () => {
+        const section = declared(review.id).sections.find((s) => s.key === "seedUrls");
+        expect(section.type).toBe("textList");
+        expect(section.removeLabel).toBe("Remove");
+        expect(section.removeAriaLabel).toBe("Remove URL");
+      });
+    }
 
     it(`${review.kind} screen is plain JSON within the product's size bound`, () => {
       const serialized = JSON.stringify(declared(review.id));
