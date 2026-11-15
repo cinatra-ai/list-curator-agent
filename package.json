@@ -92,6 +92,7 @@
               "placeholder": "https://example.com/path",
               "addLabel": "Add URL",
               "removeLabel": "Remove",
+              "removeAriaLabel": "Remove URL",
               "emptyText": "No seed URLs. Add at least one to enable Approve."
             }
           ],
