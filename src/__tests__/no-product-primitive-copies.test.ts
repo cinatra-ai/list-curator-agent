@@ -16,18 +16,12 @@
 //   3. the copies — delete `src/components/ui/<item>.tsx` for every primitive
 //      in the frozen list.
 //
-// This package's two field renderers are source-COMPILED by the host (the
-// BUILD-TIME road of the contract's "Two roads" section: the host's own
-// tsconfig maps `@cinatra-ai/list-curator-agent/src/list-curator-*-renderer`
-// onto the files in its extensions tree and `@cinatra-ai/design-primitives`
-// onto `src/lib/artifacts/host-shared-primitives.ts`), so the import line is
-// the whole package-side change: there is no client renderer bundle here and
-// therefore no preamble field and no contract-version field to declare.
+// Until cinatra-ai/cinatra#3470 the package's two field renderers took their
+// primitives from the host this way. They are gone: the two review screens are
+// declared in package.json and the product draws them. What stays pinned is that
+// the package carries no copy and no import of a product primitive.
 //
-// A regression here is silent in this repo's own CI — a standalone extension
-// mirror classifies first_party=1 and skips install, typecheck and test — which
-// is exactly why the copy and the copy-shaped import are pinned as SOURCE facts
-// rather than left to a type error in the monorepo.
+// Pinned as SOURCE facts, rather than left to a type error in the monorepo.
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import * as path from "node:path";
@@ -43,8 +37,8 @@ const PACKAGE_NAME = "@cinatra-ai/list-curator-agent";
  * host root would walk up from there, meet the HOST's package.json first and
  * never reach this package at all, so the suite would throw during collection
  * instead of proving anything. `process.cwd()` stays as the fallback for an
- * environment where `import.meta.url` is not a file URL (the jsdom environment
- * the renderer suites declare; this suite declares none). The manifest's own
+ * environment where `import.meta.url` is not a file URL (a DOM test
+ * environment, which this suite does not declare). The manifest's own
  * name is what ends the walk either way.
  */
 function packageRoot(): string {
@@ -91,19 +85,6 @@ function walk(dir: string, skipTests: boolean): string[] {
 
 const relative = (file: string) => path.relative(REPO_ROOT, file);
 
-/** The names one bare-id import statement of a renderer brings in. */
-function sharedImportNames(renderer: string): string[] {
-  const text = readFileSync(path.join(REPO_ROOT, renderer), "utf8");
-  const statements = [
-    ...text.matchAll(/import\s+\{([^}]*)\}\s+from\s+["']@cinatra-ai\/design-primitives["']/g),
-  ];
-  expect(statements).toHaveLength(1);
-  return statements[0][1]
-    .split(",")
-    .map((name) => name.trim())
-    .filter(Boolean);
-}
-
 describe("host-shared design primitives (cinatra#3471 slice 3)", () => {
   it("keeps no byte copy of a product primitive under src/components/ui/", () => {
     const uiDir = path.join(SRC, "components", "ui");
@@ -147,37 +128,6 @@ describe("host-shared design primitives (cinatra#3471 slice 3)", () => {
       }
     }
     expect(offenders).toEqual([]);
-  });
-
-  it("takes the scrape-schema renderer's primitives from the host-shared module", () => {
-    expect(sharedImportNames("src/list-curator-scrape-schema-renderer.tsx")).toEqual([
-      "Badge",
-      "Button",
-      "Card",
-      "CardContent",
-      "CardFooter",
-      "CardHeader",
-      "CardTitle",
-      "InputGroup",
-      "InputGroupAddon",
-      "InputGroupInput",
-      "Label",
-      "Textarea",
-    ]);
-  });
-
-  it("takes the final-list renderer's primitives from the host-shared module", () => {
-    expect(sharedImportNames("src/list-curator-final-list-renderer.tsx")).toEqual([
-      "Badge",
-      "Button",
-      "Card",
-      "CardContent",
-      "CardFooter",
-      "CardHeader",
-      "CardTitle",
-      "Input",
-      "Label",
-    ]);
   });
 
   it("declares the virtual module id neither as a dependency nor as a peer", () => {

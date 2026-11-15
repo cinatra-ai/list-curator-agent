@@ -1,6 +1,6 @@
 {
   "name": "@cinatra-ai/list-curator-agent",
-  "version": "0.3.7",
+  "version": "0.4.0",
   "license": "Apache-2.0",
   "description": "Orchestrator agent that curates a CRM list of accounts OR contacts from a natural-language intent. Invokes @cinatra-ai/web-scrape-agent → @cinatra-ai/company-discovery-agent → @cinatra-ai/contact-discovery-agent via agent_run, pauses at 2 HITL gates (scrape-schema-review + final-list-review), and materializes the resulting CRM list via crm_list_create + per-member crm_list_member_add after operator approval. The mixed member type is not supported — CRM lists are per-object-type.",
   "type": "module",
@@ -11,19 +11,6 @@
   ],
   "scripts": {
     "test": "vitest run"
-  },
-  "dependencies": {
-    "lucide-react": "^1.20.0"
-  },
-  "peerDependencies": {
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
-    "@cinatra-ai/sdk-ui": "*"
-  },
-  "peerDependenciesMeta": {
-    "@cinatra-ai/sdk-ui": {
-      "optional": true
-    }
   },
   "cinatra": {
     "apiVersion": "cinatra.ai/v1",
@@ -76,18 +63,164 @@
         "id": "@cinatra-ai/list-curator-agent:scrape-schema-review",
         "kind": "scrape-schema-review",
         "priority": 90,
-        "component": {
-          "entry": "./src/list-curator-scrape-schema-renderer.tsx",
-          "propsApiVersion": 1
+        "screen": {
+          "layout": "card",
+          "title": "Review scrape schema",
+          "sections": [
+            {
+              "type": "field",
+              "key": "instructions",
+              "label": "Instructions",
+              "multiline": true,
+              "optional": true,
+              "placeholder": "Per-row extraction instructions for the scrape child."
+            },
+            {
+              "type": "json",
+              "key": "outputSchema",
+              "label": "Output schema (JSON Schema)",
+              "invalidText": "Invalid JSON"
+            },
+            {
+              "type": "textList",
+              "key": "seedUrls",
+              "label": "Seed URLs",
+              "web": true,
+              "placeholder": "https://example.com/path",
+              "addLabel": "Add URL",
+              "removeLabel": "Remove",
+              "emptyText": "No seed URLs. Add at least one to enable Approve."
+            }
+          ],
+          "decisionsLabel": "Decision",
+          "decisions": [
+            {
+              "label": "Approve",
+              "answer": {
+                "decision": "approve",
+                "approved": true
+              },
+              "sends": [
+                "instructions",
+                "outputSchema",
+                "seedUrls"
+              ]
+            },
+            {
+              "label": "Reject",
+              "answer": {
+                "decision": "reject",
+                "approved": false
+              },
+              "sends": []
+            }
+          ],
+          "unreadable": {
+            "keys": [
+              "plan",
+              "outputSchema"
+            ],
+            "text": "The proposal could not be read."
+          },
+          "answerKey": "userResponse"
         }
       },
       {
         "id": "@cinatra-ai/list-curator-agent:final-list-review",
         "kind": "final-list-review",
         "priority": 90,
-        "component": {
-          "entry": "./src/list-curator-final-list-renderer.tsx",
-          "propsApiVersion": 1
+        "screen": {
+          "layout": "card",
+          "title": "Review final list",
+          "sections": [
+            {
+              "type": "field",
+              "key": "listName",
+              "label": "List name",
+              "placeholder": "Final list name"
+            },
+            {
+              "type": "rows",
+              "key": "candidateMembers",
+              "label": "Members",
+              "columns": [
+                {
+                  "title": "Name",
+                  "keys": [
+                    "name",
+                    "fullName",
+                    "displayName",
+                    "companyName",
+                    "accountName",
+                    "contactName",
+                    "organizationName",
+                    "personName"
+                  ],
+                  "fallback": "Member",
+                  "numbered": true
+                }
+              ],
+              "emptyText": "No members.",
+              "missingText": "The members could not be read."
+            },
+            {
+              "type": "rows",
+              "key": "failures",
+              "label": "Failures",
+              "tone": "danger",
+              "columns": [
+                {
+                  "title": "Row",
+                  "keys": [
+                    "rowIndex"
+                  ]
+                },
+                {
+                  "title": "Stage",
+                  "keys": [
+                    "stage"
+                  ]
+                },
+                {
+                  "title": "Error",
+                  "keys": [
+                    "error"
+                  ]
+                },
+                {
+                  "title": "Account",
+                  "keys": [
+                    "accountId"
+                  ]
+                }
+              ]
+            }
+          ],
+          "decisionsLabel": "Decision",
+          "decisions": [
+            {
+              "label": "Approve list",
+              "answer": {
+                "decision": "approve",
+                "approved": true
+              },
+              "sends": [
+                "listName"
+              ],
+              "requires": [
+                "candidateMembers"
+              ]
+            },
+            {
+              "label": "Cancel",
+              "answer": {
+                "decision": "reject",
+                "approved": false
+              },
+              "sends": []
+            }
+          ],
+          "answerKey": "userResponse"
         }
       }
     ],
