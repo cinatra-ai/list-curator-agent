@@ -76,7 +76,6 @@ const SCRAPE_SCHEMA_SCREEN = {
       emptyText: "No seed URLs. Add at least one to enable Approve.",
     },
   ],
-  decisionsLabel: "Decision",
   decisions: [
     {
       label: "Approve",
@@ -131,7 +130,6 @@ const FINAL_LIST_SCREEN = {
       ],
     },
   ],
-  decisionsLabel: "Decision",
   decisions: [
     {
       label: "Approve list",
