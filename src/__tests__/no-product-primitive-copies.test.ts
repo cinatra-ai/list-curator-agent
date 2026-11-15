@@ -73,9 +73,6 @@ const SRC = path.join(REPO_ROOT, "src");
 /** The host-neutral module id the contract fixes (`HOST_DESIGN_PRIMITIVES_MODULE`). */
 const SHARED_MODULE = "@cinatra-ai/design-primitives";
 
-/** Where the ambient declaration of the virtual id is allowed to live. */
-const DECLARATION = "src/__tests__/fixtures/design-primitives.d.ts";
-
 /** Every `.ts`/`.tsx` file under src/, optionally excluding this package's tests. */
 function walk(dir: string, skipTests: boolean): string[] {
   const out: string[] = [];
@@ -199,20 +196,15 @@ describe("host-shared design primitives (cinatra#3471 slice 3)", () => {
     expect(declared).toEqual([]);
   });
 
-  it("declares the virtual id at the one path the host's tsconfig excludes, and nowhere else", () => {
-    // An ambient `declare module` beats a tsconfig `paths` mapping for every
-    // file of the program that reads it, so inside the host it must never be
-    // part of the program: the host maps the same id onto its REAL module and
-    // serves the whole frozen export list, while this package declares only the
-    // thirteen names its renderers use — the host build would fail TS2305 on
-    // every other name. cinatra main's tsconfig includes `**/*.ts` and excludes
-    // `**/__tests__/fixtures/**`, and this extension tree is materialised at
-    // `extensions/cinatra-ai/list-curator-agent/`, so the declaration is safe
-    // under `src/__tests__/fixtures/` and nowhere else under src/. This pins the
-    // placement instead of leaving it to a file comment.
+  it("declares the virtual id nowhere: the package ships no module that draws", () => {
+    // Before cinatra-ai/cinatra#3470 the two field renderers imported the host's
+    // primitives, and an ambient declaration of the virtual id lived at the one
+    // path the host's tsconfig excludes. The package now declares its review
+    // screens and the product draws them, so no source file imports the id and
+    // no file declares it.
     const declaring = walk(SRC, false)
       .filter((file) => readFileSync(file, "utf8").includes(`declare module "${SHARED_MODULE}"`))
       .map(relative);
-    expect(declaring).toEqual([DECLARATION]);
+    expect(declaring).toEqual([]);
   });
 });
