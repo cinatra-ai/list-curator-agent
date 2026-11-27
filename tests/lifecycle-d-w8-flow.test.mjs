@@ -148,6 +148,26 @@ test("(12) every primitive the flow reaches for is declared as consumed", () => 
   }
 });
 
+// The three CRM tools the agent requires are registered by the CRM connector
+// pack. Without an install-blocking edge to it the agent installs and boots
+// without its tools and fails at the step that needs them (cinatra#4874).
+test("(12) the CRM connector that registers the required CRM tools is a required runtime dependency", () => {
+  const crmTools = ["crm_account_get", "crm_list_create", "crm_list_member_add"];
+  for (const tool of crmTools) {
+    const use = (pkg.cinatra.consumes ?? []).find((c) => c.primitive === tool);
+    assert.ok(use, `${tool} is no longer consumed; drop the CRM connector edge with it`);
+    assert.equal(use.requirement, "required", tool);
+  }
+  const edges = (pkg.cinatra.dependencies ?? []).filter((d) => d.packageName === "@cinatra-ai/crm-connector");
+  assert.equal(edges.length, 1, "the CRM connector must be declared exactly once");
+  const [edge] = edges;
+  assert.equal(edge.kind, "connector");
+  assert.equal(edge.edgeType, "runtime");
+  assert.equal(edge.requirement, "required");
+  assert.equal(edge.versionConstraint.kind, "semver-range");
+  assert.match(edge.versionConstraint.range, /^\^0\.1\.\d+$/);
+});
+
 // ---------------------------------------------------------------------------
 // (19) a plain-language ending on an empty or failed curation
 // ---------------------------------------------------------------------------
